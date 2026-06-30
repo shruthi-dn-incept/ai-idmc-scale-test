@@ -1,0 +1,95 @@
+{
+  "$$class": "com.informatica.dq.rulebuilder.RuleDefinition",
+  "$$IID": "WILL_BE_INJECTED",
+  "$$id":  "WILL_BE_INJECTED",
+  "name":        "WILL_BE_INJECTED",
+  "description": "WILL_BE_INJECTED",
+  "outsideValidityMessage": "undefined",
+  "validFromDate": "-3600000",
+  "validToDate":   "-3600000",
+  "$$aggregator": {
+    "$$lockedOn": 0,
+    "$$version":  1494513349121,
+    "##IID":      "U:IGWzIjZXEeefFIPeKxPNig",
+    "name":       "DATES",
+    "$$lockedBy": "",
+    "$$class":    789,
+    "$$property": "contents"
+  },
+  "tags": [],
+  "options": [
+    {"$$class": "com.informatica.dq.rulebuilder.StringOption", "name": "DEFAULT_STRING_PRECISION",  "optionValue": "100"},
+    {"$$class": "com.informatica.dq.rulebuilder.StringOption", "name": "DEFAULT_DECIMAL_PRECISION", "optionValue": "10"},
+    {"$$class": "com.informatica.dq.rulebuilder.StringOption", "name": "DEFAULT_DECIMAL_SCALE",     "optionValue": "4"},
+    {"$$class": "com.informatica.dq.rulebuilder.StringOption", "name": "DIMENSION",                 "optionValue": "COMPLETENESS"},
+    {"$$class": "com.informatica.dq.rulebuilder.StringOption", "name": "EXCEPTION",                 "optionValue": "false"}
+  ],
+  "fields": [
+    {
+      "$$class": "com.informatica.dq.rulebuilder.Field",
+      "$$id":    "5",
+      "$$externalID": "00000000-0000-4000-8000-000000000001",
+      "precision": "50",
+      "scale":     "0",
+      "name":      "Input",
+      "$type": {
+        "##SID":  "smd:com.informatica.metadata.seed.platform.Platform.typesystem/string",
+        "$$class": "com.informatica.metadata.common.typesystem.DataType"
+      },
+      "description": ""
+    }
+  ],
+  "outputFields": [],
+  "testData": [],
+  "topRuleFamily": {
+    "$$class": "com.informatica.dq.rulebuilder.RuleFamily",
+    "name":    "PrimaryRuleSet",
+    "description": "",
+    "$$id":         "6",
+    "$$externalID": "00000000-0000-4000-8000-000000000002",
+    "outputs":     [],
+    "outputLinks": [],
+    "statements": [
+      {
+        "$$class": "com.informatica.dq.rulebuilder.Statement",
+        "action": {
+          "$$class": "com.informatica.dq.rulebuilder.Operation",
+          "$$id":   "7",
+          "name":   "SetField",
+          "description": "",
+          "type":   "Valid",
+          "options": [
+            {"$$class": "com.informatica.dq.rulebuilder.StringOption", "name": "Value", "optionValue": "VALID"}
+          ],
+          "inputs":        [],
+          "suboperations": [],
+          "outputs":       []
+        },
+        "condition": {
+          "$$class": "com.informatica.dq.rulebuilder.Operation",
+          "$$id":   "8",
+          "name":   "NotEquals",
+          "description": "",
+          "type":   "NotEquals",
+          "options": [
+            {"$$class": "com.informatica.dq.rulebuilder.StringOption", "name": "useNull", "optionValue": "true"}
+          ],
+          "inputs": [
+            {"name": "Input", "$$class": "com.informatica.dq.rulebuilder.Field", "##id": "5", "##externalID": "undefined"}
+          ],
+          "suboperations": [],
+          "outputs":       []
+        }
+      },
+      {
+        "$$class": "com.informatica.dq.rulebuilder.Statement",
+        "action":    {"$$class": "com.informatica.dq.rulebuilder.Operation", "$$id": "9",  "name": "", "description": "",                          "options": [], "inputs": [], "suboperations": [], "outputs": []},
+        "condition": {"$$class": "com.informatica.dq.rulebuilder.Operation", "$$id": "10", "name": "", "description": "", "type": "DefaultValue", "options": [], "inputs": [], "suboperations": [], "outputs": []}
+      }
+    ],
+    "ruleFamilies": [],
+    "fields": [
+      {"name": "Input", "$$class": "com.informatica.dq.rulebuilder.Field", "##id": "5", "##externalID": "00000000-0000-4000-8000-000000000001"}
+    ]
+  }
+}

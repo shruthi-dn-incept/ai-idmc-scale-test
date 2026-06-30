@@ -1,1 +1,35 @@
 .env
+.env.*
+!.env.example
+
+# VS Code MCP config — may contain interpolation refs but we keep it untracked
+# so anyone cloning the repo starts from .vscode/mcp.example.json.
+.vscode/mcp.json
+
+# Per-user Claude Code state
+.claude/settings.local.json
+
+# Python
+__pycache__/
+tests/__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Vendor docs: only the index is tracked. The PDFs/ZIPs are vendor-owned
+# and not redistributable, and the zips total hundreds of MB anyway.
+docs/*
+!docs/*.md
+!docs/.gitkeep
+
+# Local config for dq_monitor alerts (no IDMC API exposes alert registration;
+# this file is consumed only by sibling cron/agent processes).
+.dq_monitor_alerts.json
+
+# Mac noise
+.DS_Store
+
+# Logs and runtime cache
+logs/
+.scan_cache/
+.mcp.json

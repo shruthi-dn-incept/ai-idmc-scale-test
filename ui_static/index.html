@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>INCEPT Data Governance</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+  <style>
+    body { background: #cbd5e1; }
+    .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: #cbd5e1; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 2px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .pulse { animation: pulse-dot 1.4s ease-in-out infinite; }
+    pre { white-space: pre-wrap; word-break: break-all; }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#6366f1', dark: '#4338ca', light: '#818cf8' },
+            surface: { DEFAULT: '#f1f5f9', raised: '#e2e8f0', border: '#cbd5e1' },
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="h-screen overflow-hidden">
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react,env">
+const { useState, useCallback, useRef, useEffect } = React;
+
+// ── Step definitions ──────────────────────────────────────────────────────────
+const STEPS = [
+  { id: "discover",        num: 1, label: "Discover Catalog",         icon: "⬡", desc: "List all schemas and tables from the CDGC catalog." },
+  { id: "scan",            num: 2, label: "Scan Table",                icon: "◈", desc: "Select a table and fetch its column metadata (cached after first run)." },
+  { id: "taxonomy",        num: 3, label: "Generate Taxonomy",         icon: "◫", desc: "LLM generates a domain / subdomain / business-term tree from the scanned column metadata." },
+  { id: "domain_structure",num: 4, label: "Domain Structure",          icon: "◧", desc: "Review and approve the proposed domain hierarchy, then write it to CDGC and register the source system and dataset." },
+  { id: "curate",          num: 5, label: "Curate Columns",            icon: "◩", desc: "Link every column to its matching business term (batched)." },
+  { id: "data_quality",           num: 6,  label: "Data Quality",                    icon: "◎", desc: "Creates DQ rules and generates interim scores for all registered rule occurrences in CDGC." },
+  { id: "publish_governance",     num: 7,  label: "Publish to Governance Catalog",        icon: "◉", desc: "Triggers the MCC scan — CDQ rules run on live Snowflake data (5000 rows) and publish real DQ scores to the Governance Catalog." },
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const STATUS = { idle: "idle", running: "running", done: "done", error: "error", skipped: "skipped" };
+const SKIPPABLE = new Set(["taxonomy", "domain_structure", "curate", "data_quality", "publish_governance", "create_collection", "publish_marketplace_full", "configure_delivery", "consumer_access", "verify_access", "withdraw_access"]);
+
+async function apiPost(path, body = {}, signal = undefined) {
+  const r = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(err.detail || r.statusText);
+  }
+  return r.json();
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function StatusDot({ status }) {
+  if (status === STATUS.idle)    return <span className="w-2 h-2 rounded-full bg-slate-300 inline-block"/>;
+  if (status === STATUS.running) return <span className="w-2 h-2 rounded-full bg-violet-500 inline-block pulse"/>;
+  if (status === STATUS.done)    return <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"/>;
+  if (status === STATUS.skipped) return <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" title="Skipped"/>;
+  if (status === STATUS.error)   return <span className="w-2 h-2 rounded-full bg-red-500 inline-block"/>;
+}
+
+function Spinner() {
+  return (
+    <svg className="spin w-4 h-4 text-brand" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeOpacity="0.2"/>
+      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function JsonViewer({ data, maxHeight = "320px" }) {
+  const [expanded, setExpanded] = useState(false);
+  const text = JSON.stringify(data, null, 2);
+  return (
+    <div className="rounded-lg bg-slate-800 border border-slate-700 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-700 bg-slate-900">
+        <span className="text-xs text-slate-400 font-mono">JSON</span>
+        <button onClick={() => setExpanded(e => !e)} className="text-xs text-slate-400 hover:text-violet-400">
+          {expanded ? "Collapse" : "Expand"}
+        </button>
+      </div>
+      <div className="overflow-auto scrollbar-thin" style={{ maxHeight: expanded ? "none" : maxHeight }}>
+        <pre className="p-3 text-xs text-slate-300 font-mono">{text}</pre>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, color = "text-brand" }) {
+  return (
+    <div className="bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 flex flex-col gap-0.5 shadow-sm overflow-hidden">
+      <span className={`text-lg font-bold truncate ${color}`} title={typeof value === 'string' ? value : undefined}>{value}</span>
+      <span className="text-xs text-slate-400 uppercase tracking-wider font-medium">{label}</span>
+    </div>
+  );
+}
+
+// ── Step result renderers ─────────────────────────────────────────────────────
+
+function DiscoverResult({ data }) {
+  const schemas = data?.result?.schemas || [];
+  const total   = data?.result?.total_tables || 0;
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <SummaryCard label="Schemas"    value={schemas.length}/>
+        <SummaryCard label="Tables"     value={total}/>
+        <SummaryCard label="Connection" value={schemas[0]?.connection || "—"} color="text-slate-600"/>
+      </div>
+      {schemas.map(s => (
+        <div key={s.schema} className="bg-slate-100 border border-slate-300 rounded-lg p-3 overflow-hidden">
+          <div className="text-sm font-semibold text-slate-700 mb-2">{s.schema}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {s.tables.map(t => (
+              <span key={t.name} className="text-xs bg-slate-50 border border-slate-300 text-slate-600 px-2 py-0.5 rounded-md shadow-sm max-w-[200px] truncate inline-block" title={t.name}>{t.name}</span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ScanResult({ data }) {
+  const cols = data?.columns?.[0];
+  const scan = data?.scan?.result;
+  if (!cols && !scan) return <JsonViewer data={data}/>;
+  if (!cols) {
+    const missing = scan?.missing || [];
+    const foundCount = scan?.found_count ?? 0;
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          <SummaryCard label="Found" value={foundCount} color="text-slate-500"/>
+          <SummaryCard label="Missing" value={missing.length} color="text-red-500"/>
+          <SummaryCard label="Status" value="Not Found" color="text-red-500"/>
+        </div>
+        {missing.length > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <div className="text-xs text-red-500 font-medium mb-2 uppercase tracking-wider">Tables not found in catalog</div>
+            <div className="flex flex-wrap gap-1.5">
+              {missing.map(m => (
+                <span key={m} className="text-xs bg-white border border-red-200 text-red-600 px-2 py-0.5 rounded font-mono max-w-[200px] truncate inline-block" title={m}>{m}</span>
+              ))}
+            </div>
+            <p className="text-xs text-red-400 mt-2">Table may not be catalogued yet. Try scanning the MCC source first or select a different table.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <SummaryCard label="Columns" value={cols.column_count}/>
+        <SummaryCard label="Schema"  value={scan?.tables?.[0]?.schema || "—"} color="text-slate-600"/>
+        <SummaryCard label="Source"  value={cols.source} color={cols.source === "cache" ? "text-amber-600" : "text-emerald-600"}/>
+      </div>
+      <div className="bg-slate-100 border border-slate-300 rounded-lg p-3">
+        <div className="text-xs text-slate-400 font-medium mb-2 uppercase tracking-wider">Column preview</div>
+        <div className="flex flex-wrap gap-1.5">
+          {(cols.columns_preview || []).map(c => (
+            <span key={c} className="text-xs bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-mono max-w-[200px] truncate inline-block" title={c}>{c}</span>
+          ))}
+          {cols.column_count > (cols.columns_preview || []).length && (
+            <span className="text-xs text-slate-400 px-2 py-0.5">+{cols.column_count - (cols.columns_preview || []).length} more</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaxonomyResult({ data }) {
+  const domains = data?.result?.domains || [];
+  const s = data?.result?._summary || {};
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <SummaryCard label="Domains"    value={s.domain_count || domains.length}/>
+        <SummaryCard label="Subdomains" value={s.subdomain_count || "—"}/>
+        <SummaryCard label="Business Terms" value={s.term_count || "—"}/>
+      </div>
+      {domains.map(d => (
+        <div key={d.name} className="bg-slate-100 border border-slate-300 rounded-lg p-3 space-y-2">
+          <div className="text-sm font-semibold text-brand">◈ {d.name}</div>
+          {(d.subdomains || []).map(sd => (
+            <div key={sd.name} className="ml-3">
+              <div className="text-xs text-slate-600 font-semibold mb-1">◧ {sd.name}</div>
+              <div className="flex flex-wrap gap-1.5 ml-3">
+                {(sd.business_terms || []).map(bt => (
+                  <span key={bt.name} className="text-xs bg-slate-50 border border-slate-300 text-slate-600 px-2 py-0.5 rounded shadow-sm max-w-[200px] truncate inline-block" title={bt.name}>{bt.name}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DomainStructureResult({ data, domainItems, domainSelected }) {
+  const [showSelection, setShowSelection] = React.useState(false);
+  // handle both wrapped {result: {...}} and direct {created, skipped, ...} formats
+  const r = (data?.result && !data.result.awaiting_approval) ? data.result : (data || {});
+  const s = r.summary || {};
+  const created = r.created || [];
+  const skipped = r.skipped || [];
+  const errors  = r.errors  || [];
+
+  const groups = [
+    { type: "Domain",       label: "Domains",       color: "text-violet-600", bg: "bg-violet-50" },
+    { type: "SubDomain",    label: "Sub-Domains",    color: "text-indigo-600", bg: "bg-indigo-50" },
+    { type: "BusinessTerm", label: "Business Terms", color: "text-slate-700",  bg: "bg-slate-50"  },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <SummaryCard label="Created" value={s.created_count ?? created.length} color="text-emerald-600"/>
+        <SummaryCard label="Skipped" value={s.skipped_count ?? skipped.length} color="text-amber-600"/>
+        <SummaryCard label="Errors"  value={s.error_count ?? errors.length} color={(s.error_count || errors.length) ? "text-red-600" : "text-slate-400"}/>
+      </div>
+      {created.length > 0 && (
+        <div className="bg-slate-100 border border-slate-300 rounded-lg p-3">
+          <div className="text-xs text-slate-400 font-medium mb-2 uppercase tracking-wider">Newly created</div>
+          <div className="space-y-1">
+            {created.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <span className="text-emerald-500">✓</span>
+                <span className="text-slate-400 w-24">{c.type}</span>
+                <span className="text-slate-700 font-medium">{c.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {skipped.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <div className="text-xs text-amber-600 font-medium mb-2 uppercase tracking-wider">Already existed (skipped)</div>
+          <div className="space-y-1">
+            {skipped.map((c, i) => {
+              const moved   = c.reason && c.reason.includes("moved under");
+              const reFailed = c.reason && c.reason.includes("re-parent failed");
+              return (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className={moved ? "text-emerald-500 mt-0.5" : reFailed ? "text-red-400 mt-0.5" : "text-amber-400 mt-0.5"}>
+                    {moved ? "↪" : reFailed ? "!" : "⊘"}
+                  </span>
+                  <span className="text-slate-400 w-24 shrink-0">{c.type}</span>
+                  <div className="flex flex-col">
+                    <span className="text-slate-700 font-medium">{c.name}</span>
+                    {c.reason && <span className={`text-xs mt-0.5 ${moved ? "text-emerald-500" : reFailed ? "text-red-400" : "text-amber-400"}`}>{c.reason}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {errors.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+          <div className="text-xs text-red-600 font-medium mb-2 uppercase tracking-wider">Errors</div>
+          <div className="space-y-1">
+            {errors.map((e, i) => (
+              <div key={i} className="text-xs">
+                <span className="text-red-500 font-medium">{e.type}: {e.name}</span>
+                <span className="text-red-400 ml-2">— {e.error}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Collapsible view of what was approved */}
+      {domainItems && domainItems.length > 0 && (
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setShowSelection(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-sm font-medium text-slate-600"
+          >
+            <span>View approved selection ({domainSelected ? domainSelected.size : 0} items)</span>
+            <span className="text-slate-400">{showSelection ? "▲" : "▼"}</span>
+          </button>
+          {showSelection && (
+            <div className="p-4 space-y-3 bg-white">
+              {groups.map(g => {
+                const groupItems = domainItems.filter(i => i.type === g.type);
+                if (!groupItems.length) return null;
+                return (
+                  <div key={g.type}>
+                    <div className={`text-xs font-bold uppercase tracking-wider ${g.color} mb-1.5`}>{g.label}</div>
+                    <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                      {groupItems.map(item => {
+                        const isSelected = domainSelected && domainSelected.has(item.name);
+                        return (
+                          <div key={item.name} className={`flex items-center gap-3 px-3 py-2 text-sm ${isSelected ? "bg-white" : "bg-slate-50 opacity-50"}`}>
+                            <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? "bg-violet-600 border-violet-600 text-white" : "border-slate-300"}`}>
+                              {isSelected && <span className="text-xs leading-none">✓</span>}
+                            </span>
+                            <span className={`font-medium ${isSelected ? "text-slate-700" : "text-slate-400"}`}>{item.name}</span>
+                            {item.parent && <span className="text-xs bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded">{item.parent}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DomainApprovalPanel({ items, selected, onToggle, onToggleGroup, onSelectAll, onDeselectAll, onApprove, onRename, approving }) {
+  const groups = [
+    { type: "Domain",       label: "Domains",          color: "text-violet-600",  bg: "bg-violet-50",  border: "border-violet-200" },
+    { type: "SubDomain",    label: "Sub-Domains",       color: "text-indigo-600",  bg: "bg-indigo-50",  border: "border-indigo-200" },
+    { type: "BusinessTerm", label: "Business Terms",    color: "text-slate-700",   bg: "bg-slate-50",   border: "border-slate-200"  },
+  ];
+  const [editingName, setEditingName] = React.useState(null);
+  const [editValue,   setEditValue]   = React.useState("");
+
+  const startEdit = (name, e) => {
+    e.preventDefault(); e.stopPropagation();
+    setEditingName(name);
+    setEditValue(name);
+  };
+  const commitEdit = (oldName) => {
+    const newName = editValue.trim();
+    if (newName && newName !== oldName) onRename(oldName, newName);
+    setEditingName(null);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-3">
+        <span className="text-lg">✋</span>
+        <div>
+          <div className="text-sm font-semibold text-amber-800">Review before creating in CDGC</div>
+          <div className="text-xs text-amber-600">Deselect any items you don't want. Click a name to rename it.</div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{selected.size} / {items.length} selected</span>
+        <div className="flex gap-2">
+          <button onClick={onSelectAll}   className="text-xs px-2.5 py-1 rounded border border-slate-300 bg-white text-slate-600 hover:border-brand hover:text-brand transition-colors">Select all</button>
+          <button onClick={onDeselectAll} className="text-xs px-2.5 py-1 rounded border border-slate-300 bg-white text-slate-600 hover:border-red-300 hover:text-red-500 transition-colors">Deselect all</button>
+        </div>
+      </div>
+
+      {groups.map(g => {
+        const groupItems = items.filter(i => i.type === g.type);
+        if (!groupItems.length) return null;
+        const groupSelected = groupItems.filter(i => selected.has(i.name));
+        const allChecked = groupSelected.length === groupItems.length;
+        return (
+          <div key={g.type} className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+            {/* Group header */}
+            <div className={`flex items-center gap-2 px-4 py-2.5 ${g.bg} border-b border-slate-200`}>
+              <input
+                type="checkbox"
+                checked={allChecked}
+                onChange={() => onToggleGroup(groupItems.map(i => i.name), !allChecked)}
+                className="accent-violet-600 cursor-pointer w-3.5 h-3.5"
+              />
+              <span className={`text-xs font-bold uppercase tracking-wider ${g.color}`}>{g.label}</span>
+              <span className="text-xs text-slate-400 font-medium">{groupSelected.length} / {groupItems.length}</span>
+            </div>
+            {/* Item rows */}
+            <div className="divide-y divide-slate-100">
+              {groupItems.map(item => {
+                const isSelected = selected.has(item.name);
+                const isEditing  = editingName === item.name;
+                return (
+                  <div key={item.name}
+                    className={`flex items-center gap-3 px-4 py-2.5 group transition-colors ${isSelected ? "bg-white hover:bg-slate-50" : "bg-slate-50 opacity-50"}`}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggle(item.name)}
+                      className="accent-violet-600 cursor-pointer w-3.5 h-3.5 shrink-0"
+                    />
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                      {isEditing ? (
+                        <input
+                          autoFocus
+                          value={editValue}
+                          onChange={e => setEditValue(e.target.value)}
+                          onBlur={() => commitEdit(item.name)}
+                          onKeyDown={e => { if (e.key === "Enter") commitEdit(item.name); if (e.key === "Escape") setEditingName(null); }}
+                          onClick={e => e.stopPropagation()}
+                          className="flex-1 border border-violet-300 rounded px-2 py-0.5 text-sm font-medium text-slate-800 outline-none bg-white shadow-inner"
+                        />
+                      ) : (
+                        <span className="text-sm font-medium text-slate-700 break-words">{item.name}</span>
+                      )}
+                      {item.parent && !isEditing && (
+                        <span className="shrink-0 text-xs bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-normal truncate max-w-[120px]" title={item.parent}>{item.parent}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={e => startEdit(item.name, e)}
+                      className="shrink-0 opacity-0 group-hover:opacity-100 transition-all px-2 py-0.5 rounded bg-violet-100 text-violet-600 hover:bg-violet-200 text-xs font-medium"
+                      title="Rename"
+                    >✎ Rename</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      <button
+        onClick={onApprove}
+        disabled={approving || selected.size === 0}
+        className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all
+          ${approving || selected.size === 0
+            ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+            : "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-md shadow-emerald-100 hover:shadow-emerald-200"}`}
+      >
+        {approving ? <><Spinner/> Creating in CDGC…</> : <>✓ Approve &amp; Create ({selected.size} items)</>}
+      </button>
+    </div>
+  );
+}
+
+function SystemDatasetResult({ data }) {
+  const r = data?.result || {};
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="System"  value={r.system?.name || "—"} color="text-slate-700"/>
+        <SummaryCard label="Dataset" value={(r.dataset?.name || "—").slice(0, 28) + (r.dataset?.name?.length > 28 ? "…" : "")} color="text-slate-700"/>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Columns linked" value={r.data_elements?.linked?.length || 0}/>
+        <SummaryCard label="Errors" value={r.data_elements?.errors?.length || 0} color={r.data_elements?.errors?.length ? "text-red-600" : "text-slate-400"}/>
+      </div>
+    </div>
+  );
+}
+
+function CurateResult({ data }) {
+  const last = data?.batches?.[data.batches.length - 1] || {};
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <SummaryCard label="Linked"  value={last.total_linked_so_far || 0} color="text-emerald-600"/>
+        <SummaryCard label="Skipped" value={last.skipped || 0} color="text-amber-600"/>
+        <SummaryCard label="Batches" value={data?.batches?.length || 0} color="text-slate-600"/>
+      </div>
+      <div className="bg-slate-100 border border-slate-300 rounded-lg p-3">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="flex-1 bg-slate-300 rounded-full h-2">
+            <div className="bg-emerald-500 h-2 rounded-full transition-all" style={{width: last.progress?.split("%")[0]?.split("(")[1] || "100%"}}/>
+          </div>
+          <span className="text-xs text-slate-500 font-medium">{last.progress}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DQRulesResult({ data }) {
+  const rules = data?.rules || {};
+  const s = rules.summary || {};
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <SummaryCard label="Rule specs"  value={s.rule_count ?? 0}/>
+        <SummaryCard label="Occurrences" value={s.occurrence_count ?? 0}/>
+        <SummaryCard label="Errors"      value={s.error_count ?? 0} color={s.error_count ? "text-red-600" : "text-slate-400"}/>
+      </div>
+      {(rules.rules_created || []).length > 0 && (
+        <div className="bg-slate-100 border border-slate-300 rounded-lg p-3">
+          <div className="text-xs text-slate-400 font-medium mb-2 uppercase tracking-wider">Rules created</div>
+          {(rules.rules_created || []).map((r, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs mb-1">
+              <span className="text-brand">◈</span>
+              <span className="text-slate-700 font-mono font-medium">{r.rule_name}</span>
+              <span className="text-slate-400">{r.dimension}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScoresResult({ data }) {
+  const pushed  = data?.pushed || 0;
+  const scores  = data?.scores || [];
+  const ok      = scores.filter(s => s.http_status === 200).length;
+  const [open, setOpen] = React.useState(false);
+
+  // Merge score http_status with DQRO metadata (plan next_actions carry column+dimension)
+  const rows = scores.map((s, i) => ({
+    name:      s.name      || `DQ_${s.column}_${s.dimension}` || "—",
+    column:    s.column    || "—",
+    dimension: s.dimension || "—",
+    score:     s.value     != null ? `${s.value}%` : "95%",
+    status:    s.http_status === 200 ? "✓" : `HTTP ${s.http_status}`,
+    ok:        s.http_status === 200,
+  }));
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <SummaryCard label="Pushed" value={ok}     color="text-emerald-600"/>
+        <SummaryCard label="Total"  value={pushed}/>
+        <SummaryCard label="Score"  value="95%"    color="text-brand"/>
+      </div>
+
+      {/* Collapsible DQRO grid */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+        >
+          <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Rule Occurrences (DQROs) — {ok} pushed</span>
+          <span className="text-slate-400 text-sm">{open ? "▲" : "▼"}</span>
+        </button>
+        {open && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-slate-100 text-slate-500 uppercase tracking-wider">
+                <tr>
+                  <th className="px-3 py-2 text-left">DQRO Name</th>
+                  <th className="px-3 py-2 text-left">Column</th>
+                  <th className="px-3 py-2 text-left">Dimension</th>
+                  <th className="px-3 py-2 text-left">Score</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((r, i) => (
+                  <tr key={i} className="hover:bg-slate-50">
+                    <td className="px-3 py-2 font-mono text-slate-700">{r.name}</td>
+                    <td className="px-3 py-2 text-slate-600">{r.column}</td>
+                    <td className="px-3 py-2">
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">{r.dimension}</span>
+                    </td>
+                    <td className="px-3 py-2 font-semibold text-emerald-600">{r.score}</td>
+                    <td className={`px-3 py-2 font-semibold ${r.ok ? "text-emerald-500" : "text-red-500"}`}>{r.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-3">
+        <span className="text-2xl">⏱</span>
+        <div>
+          <div className="text-sm font-semibold text-amber-800">Interim scores live — run MCC Scan next</div>
+          <div className="text-xs text-amber-600">95% placeholder scores uploaded. Proceed to Step 9 to trigger the real CDQ run.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MccScanResult({ data }) {
+  const jobId    = data?.result?.job_id || data?.job_id || "—";
+  const status   = data?.result?.status || data?.status || "SUBMITTED";
+  const caps     = data?.result?.capabilities || ["Data Quality"];
+  const source   = data?.result?.catalog_source || "CDGC-SNOWFLAKE-TERDEV";
+  const tracking = data?.result?.tracking_uri || data?.tracking_uri || "";
+  const note     = data?.result?.note || "";
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Status"       value={status} color={status === "SUBMITTED" || status === "RUNNING" ? "text-brand" : "text-emerald-600"}/>
+        <SummaryCard label="Capabilities" value={caps.join(", ")} color="text-slate-600"/>
+      </div>
+      <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 space-y-2">
+        <div className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-2">Job Details</div>
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Job ID</span>
+          <span className="text-xs font-mono text-brand break-all">{jobId}</span>
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Catalog Source</span>
+          <span className="text-xs text-slate-600">{source}</span>
+        </div>
+        {tracking && (
+          <div className="flex items-start gap-2">
+            <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Tracking URI</span>
+            <span className="text-xs font-mono text-slate-500 break-all">{tracking}</span>
+          </div>
+        )}
+      </div>
+      {note && <div className="text-xs text-slate-400 italic">{note}</div>}
+      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-3">
+        <span className="text-xl">🎉</span>
+        <div>
+          <div className="text-sm font-semibold text-emerald-800">Almost done — one more step</div>
+          <div className="text-xs text-emerald-600">MCC scan submitted. Proceed to Step 10 to start publishing this dataset to the Data Marketplace.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SubStepRow({ label, result, detail }) {
+  const s = result?.status || "";
+  const ok = ["created","existing","done","published","linked","already_linked","found","partial"].some(v => s.includes(v));
+  const failed = s.includes("failed") || result?.error;
+  const icon = failed ? "✗" : ok ? "✓" : "–";
+  const color = failed ? "text-red-500" : ok ? "text-emerald-600" : "text-slate-400";
+  return (
+    <div className="flex items-start gap-3 py-2 border-b border-slate-100 last:border-0">
+      <span className={`text-sm font-bold w-4 shrink-0 ${color}`}>{icon}</span>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-slate-700">{label}</div>
+        {result?.error && <div className="text-xs text-red-500 mt-0.5 truncate">{result.error}</div>}
+        {!result?.error && detail && <div className="text-xs text-slate-500 mt-0.5">{detail}</div>}
+        {!result?.error && !detail && s && <div className="text-xs text-slate-400 mt-0.5">{s}</div>}
+      </div>
+    </div>
+  );
+}
+
+function CreateCollectionResult({ data }) {
+  const all = [
+    { label: "CDMP Category",   key: "category" },
+    { label: "Data Asset",      key: "data_asset" },
+    { label: "Data Collection", key: "collection" },
+  ];
+  const allOk = all.every(s => {
+    const r = data?.[s.key]; const st = r?.status || "";
+    return ["created","existing","done","found"].some(v => st.includes(v));
+  });
+  return (
+    <div className="space-y-3">
+      <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm">
+        {all.map(s => {
+          const r = data?.[s.key];
+          const name = r?.name || r?.title || r?.collection_name || r?.asset_name || r?.category_name || null;
+          const id   = r?.id   || r?.collection_id || r?.asset_id || r?.category_id || null;
+          const detail = name || r?.status || null;
+          return <SubStepRow key={s.key} label={s.label} result={r} detail={detail}/>;
+        })}
+      </div>
+      {allOk && <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm font-semibold text-emerald-800">✓ Marketplace assets created</div>}
+    </div>
+  );
+}
+
+function PublishMarketplaceFullResult({ data }) {
+  const ok = ["published","done","existing","created"].some(v => (data?.status||"").includes(v));
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Status" value={data?.status || "—"} color={ok ? "text-emerald-600" : "text-slate-500"}/>
+        <SummaryCard label="HTTP"   value={data?.http_status || "—"} color={ok ? "text-emerald-600" : "text-slate-500"}/>
+      </div>
+      {data?.marketplace_url && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg border border-slate-200">
+          <span className="text-xs text-slate-400 font-medium shrink-0">Marketplace</span>
+          <a href={data.marketplace_url} target="_blank" rel="noreferrer" className="text-xs text-brand underline break-all">{data.marketplace_url}</a>
+        </div>
+      )}
+      {ok && <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm font-semibold text-emerald-800">✓ Collection published to Marketplace</div>}
+      {data?.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error}</pre></div>}
+    </div>
+  );
+}
+
+function ConfigureDeliveryResult({ data }) {
+  const all = [
+    { label: "Usage Contexts",    key: "usage_context" },
+    { label: "Delivery Template", key: "delivery_template" },
+    { label: "Terms of Use",      key: "terms_of_use" },
+    { label: "Delivery Target",   key: "delivery_target" },
+  ];
+  const allOk = all.every(s => {
+    const r = data?.[s.key]; const st = r?.status || "";
+    return ["created","existing","done","linked","already_linked"].some(v => st.includes(v));
+  });
+  function detailFor(key, r) {
+    if (!r) return null;
+    const name = r.name || r.template_name || r.target_name || r.title || null;
+    const created = r.created || [];
+    const skipped = r.skipped || [];
+    if (key === "usage_context") {
+      const total = created.length + skipped.length;
+      return total ? `${created.length} created, ${skipped.length} existing` : null;
+    }
+    return name || null;
+  }
+  return (
+    <div className="space-y-3">
+      <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm">
+        {all.map(s => <SubStepRow key={s.key} label={s.label} result={data?.[s.key]} detail={detailFor(s.key, data?.[s.key])}/>)}
+      </div>
+      {allOk && <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm font-semibold text-emerald-800">✓ Delivery configuration complete</div>}
+    </div>
+  );
+}
+
+function CdmpCategoryResult({ data }) {
+  const ok = data?.status === "created" || data?.status === "existing";
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Status" value={data?.status || "—"} color={ok ? "text-emerald-600" : "text-red-500"}/>
+        <SummaryCard label="HTTP"   value={data?.http_status || "—"} color={ok ? "text-emerald-600" : "text-red-500"}/>
+      </div>
+      <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Category Name</span>
+          <span className="text-xs font-medium text-slate-700">{data?.name || "—"}</span>
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Category ID</span>
+          <span className="text-xs font-mono text-brand break-all">{data?.id || "—"}</span>
+        </div>
+      </div>
+      {data?.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error}</pre></div>}
+    </div>
+  );
+}
+
+function UploadBadge({ upload, label }) {
+  if (!upload) return null;
+  const uploaded = upload.status === "uploaded";
+  const saved    = upload.status === "saved_locally";
+  const color    = uploaded ? "text-emerald-600" : saved ? "text-amber-600" : "text-red-500";
+  const text     = uploaded
+    ? `✓ Uploaded via API (HTTP ${upload.http_status})`
+    : saved
+      ? `📁 Saved locally — import via CDMP UI`
+      : `✗ ${upload.status} (HTTP ${upload.http_status || "—"})`;
+  return (
+    <div className="flex items-start gap-2">
+      <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">{label}</span>
+      <div>
+        <span className={`text-xs font-semibold ${color}`}>{text}</span>
+        {saved && upload.local_path && (
+          <div className="text-xs text-slate-500 font-mono mt-0.5 break-all">{upload.local_path}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CdmpDataAssetResult({ data }) {
+  const ok = data?.status === "found" || data?.status === "created";
+  const notFound = data?.status === "not_found";
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Status" value={data?.status || "—"} color={ok ? "text-emerald-600" : "text-red-500"}/>
+        <SummaryCard label="Asset ID" value={data?.id ? data.id.slice(0,8)+"..." : "—"} color={ok ? "text-brand" : "text-slate-400"}/>
+      </div>
+      <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Asset Name</span>
+          <span className="text-xs font-medium text-slate-700">{data?.name || "—"}</span>
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Source</span>
+          <span className="text-xs text-slate-600">{data?.source || "—"}</span>
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Type</span>
+          <span className="text-xs text-slate-600">{data?.type || "—"}</span>
+        </div>
+      </div>
+      {notFound && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+          <span className="text-amber-500 text-sm mt-0.5">ℹ</span>
+          <span className="text-xs text-amber-800">{data?.note || "Asset not found in CDMP. Ensure Steps 1–9 have run and the CDGC integration is active."}</span>
+        </div>
+      )}
+      {data?.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error}</pre></div>}
+    </div>
+  );
+}
+
+function CdmpCollectionResult({ data }) {
+  const ok = data?.status === "created";
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Status"      value={data?.status || "—"}      color={ok ? "text-emerald-600" : "text-red-500"}/>
+        <SummaryCard label="HTTP"        value={data?.http_status || "—"} color={ok ? "text-emerald-600" : "text-red-500"}/>
+      </div>
+      <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Collection Name</span>
+          <span className="text-xs font-medium text-slate-700">{data?.name || "—"}</span>
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Collection ID</span>
+          <span className="text-xs font-mono text-brand break-all">{data?.id || "—"}</span>
+        </div>
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">External ID</span>
+          <span className="text-xs font-mono text-slate-600">{data?.externalId || "—"}</span>
+        </div>
+        {data?.marketplace_url && (
+          <div className="flex items-start gap-2">
+            <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Marketplace</span>
+            <a href={data.marketplace_url} target="_blank" rel="noreferrer" className="text-xs text-brand underline break-all">{data.marketplace_url}</a>
+          </div>
+        )}
+      </div>
+      {data?.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error}</pre></div>}
+    </div>
+  );
+}
+
+function PublishMarketplaceResult({ data }) {
+  const published = data?.published === true;
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Status" value={data?.status || "—"} color={published ? "text-emerald-600" : "text-red-500"}/>
+        <SummaryCard label="HTTP"   value={data?.http_status || "—"} color={published ? "text-emerald-600" : "text-red-500"}/>
+      </div>
+      <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Collection ID</span>
+          <span className="text-xs font-mono text-brand break-all">{data?.collection_id || "—"}</span>
+        </div>
+        {data?.marketplace_url && (
+          <div className="flex items-start gap-2">
+            <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Marketplace URL</span>
+            <a href={data.marketplace_url} target="_blank" rel="noreferrer" className="text-xs text-brand underline break-all">{data.marketplace_url}</a>
+          </div>
+        )}
+      </div>
+      {data?.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error}</pre></div>}
+      {published && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-3">
+          <span className="text-xl">✓</span>
+          <div>
+            <div className="text-sm font-semibold text-emerald-800">Collection published</div>
+            <div className="text-xs text-emerald-600">Continue to Steps 14–17 to add delivery template, terms, and provision consumer access.</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreparedStepResult({ data, label, extraFields = [] }) {
+  const ok = ["prepared", "ready", "uploaded", "saved_locally"].includes(data?.status);
+  const csvUpload = data?.csv_upload;
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Status" value={data?.status || "—"} color={ok ? "text-emerald-600" : "text-red-500"}/>
+        {extraFields[0] && <SummaryCard label={extraFields[0].label} value={data?.[extraFields[0].key] || "—"} color="text-brand"/>}
+      </div>
+      <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Name</span>
+          <span className="text-xs text-slate-700">{data?.name || "—"}</span>
+        </div>
+        {data?.collection_id && (
+          <div className="flex items-start gap-2">
+            <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Collection ID</span>
+            <span className="text-xs font-mono text-brand break-all">{data.collection_id}</span>
+          </div>
+        )}
+        {data?.consumer && (
+          <div className="flex items-start gap-2">
+            <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Consumer</span>
+            <span className="text-xs text-slate-700">{data.consumer}</span>
+          </div>
+        )}
+        {data?.marketplace_url && (
+          <div className="flex items-start gap-2">
+            <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Marketplace</span>
+            <a href={data.marketplace_url} target="_blank" rel="noreferrer" className="text-xs text-brand underline break-all">{data.marketplace_url}</a>
+          </div>
+        )}
+        {csvUpload && <UploadBadge upload={csvUpload} label="CSV Upload"/>}
+      </div>
+      {data?.note && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+          <span className="text-amber-500 text-sm mt-0.5">ℹ</span>
+          <span className="text-xs text-amber-800">{data.note}</span>
+        </div>
+      )}
+      {data?.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error}</pre></div>}
+    </div>
+  );
+}
+
+function DeliveryTemplateResult({ data }) {
+  return <PreparedStepResult data={data} label="Delivery Template" extraFields={[{label: "Method", key: "method"}]}/>;
+}
+
+function TermsOfUseResult({ data }) {
+  const ok = ["prepared", "uploaded"].includes(data?.status);
+  return (
+    <div className="space-y-3">
+      <PreparedStepResult data={data} label="Terms of Use"/>
+      {(data?.tou_csv_upload || data?.tou_link_csv_upload) && (
+        <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 space-y-2">
+          <div className="text-xs font-semibold text-slate-500 mb-1">CSV Uploads</div>
+          {data?.tou_csv_upload && <UploadBadge upload={data.tou_csv_upload} label="Terms of Use"/>}
+          {data?.tou_link_csv_upload && <UploadBadge upload={data.tou_link_csv_upload} label="ToU → Collection"/>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeliveryTargetResult({ data }) {
+  return <PreparedStepResult data={data} label="Delivery Target" extraFields={[{label: "Type", key: "target_type"}]}/>;
+}
+
+function ConsumerAccessResult({ data }) {
+  const ok = ["COMPLETE", "PENDING", "ready"].includes(data?.status);
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Order" value={data?.order_ref || data?.order_id?.slice(0,8) || "—"} color={ok ? "text-emerald-600" : "text-red-500"}/>
+        <SummaryCard label="Status" value={data?.status || "—"} color={ok ? "text-emerald-600" : "text-red-500"}/>
+      </div>
+      <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Collection ID</span>
+          <span className="text-xs font-mono text-brand break-all">{data?.collection_id || "—"}</span>
+        </div>
+        {data?.marketplace_url && (
+          <div className="flex items-start gap-2">
+            <span className="text-xs text-slate-400 w-28 shrink-0 font-medium">Marketplace</span>
+            <a href={data.marketplace_url} target="_blank" rel="noreferrer" className="text-xs text-brand underline break-all">{data.marketplace_url}</a>
+          </div>
+        )}
+      </div>
+      {data?.auto_approved && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-3">
+          <span className="text-xl">⚡</span>
+          <div>
+            <div className="text-sm font-semibold text-emerald-800">Auto-approved by ClaireBot</div>
+            <div className="text-xs text-emerald-600 mt-0.5">Order placed and automatically approved — no manual intervention needed. Access granted.</div>
+          </div>
+        </div>
+      )}
+      {!data?.auto_approved && data?.status === "PENDING" && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 flex items-start gap-3">
+          <span className="text-xl">⏳</span>
+          <div>
+            <div className="text-sm font-semibold text-amber-800">Order pending approval</div>
+            <div className="text-xs text-amber-700 mt-0.5">The delivery owner must log in to the Data Marketplace, open this order, and click <strong>Approve → Fulfill</strong> to grant access.</div>
+            {data?.marketplace_url && (
+              <a href={data.marketplace_url} target="_blank" rel="noreferrer" className="text-xs text-brand underline mt-1 inline-block">Open in Marketplace →</a>
+            )}
+          </div>
+        </div>
+      )}
+      {!data?.auto_approved && data?.status === "COMPLETE" && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-3">
+          <span className="text-xl">🎉</span>
+          <div>
+            <div className="text-sm font-semibold text-emerald-800">Access granted</div>
+            <div className="text-xs text-emerald-600">Order approved and fulfilled by the delivery owner.</div>
+          </div>
+        </div>
+      )}
+      {data?.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error}</pre></div>}
+    </div>
+  );
+}
+
+function VerifyAccessResult({ data }) {
+  const status    = (data?.status || "").toUpperCase();
+  const fulfilled = data?.fulfilled === true || ["FULFILLED","COMPLETE","ACCESS_GRANTED","COMPLETE"].includes(status);
+  const approved  = !fulfilled && status === "APPROVED";
+  const pending   = !fulfilled && !approved && data?.status && status !== "FAILED";
+  const statusColor = fulfilled ? "text-emerald-600" : approved ? "text-blue-600" : "text-amber-500";
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Order" value={data?.order_ref || data?.order_id?.slice(0,8) || "—"} color={statusColor}/>
+        <SummaryCard label="Status" value={data?.status || "—"} color={statusColor}/>
+      </div>
+      {data?.marketplace_url && (
+        <div className="bg-slate-100 border border-slate-300 rounded-lg px-4 py-2 flex items-center gap-2">
+          <span className="text-xs text-slate-400 font-medium w-28 shrink-0">Marketplace</span>
+          <a href={data.marketplace_url} target="_blank" rel="noreferrer" className="text-xs text-brand underline break-all">{data.marketplace_url}</a>
+        </div>
+      )}
+      {fulfilled && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-3">
+          <span className="text-xl">🎉</span>
+          <div>
+            <div className="text-sm font-semibold text-emerald-800">Access granted — pipeline complete!</div>
+            <div className="text-xs text-emerald-600">Order fulfilled. Full producer → governed → marketplace → consumer loop done.</div>
+          </div>
+        </div>
+      )}
+      {approved && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-3">
+          <span className="text-xl">✅</span>
+          <div>
+            <div className="text-sm font-semibold text-blue-800">Approved — awaiting fulfillment</div>
+            <div className="text-xs text-blue-700">Order approved. The delivery owner must now click <strong>Fulfill</strong> in the Marketplace to complete access.</div>
+          </div>
+        </div>
+      )}
+      {pending && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg p-3 flex items-center gap-3">
+          <span className="text-xl">⏳</span>
+          <div>
+            <div className="text-sm font-semibold text-amber-800">Awaiting approval</div>
+            <div className="text-xs text-amber-700">The delivery owner has not yet approved the order. Run this step again after approval.</div>
+          </div>
+        </div>
+      )}
+      {data?.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error}</pre></div>}
+    </div>
+  );
+}
+
+function WithdrawAccessResult({ data }) {
+  const withdrawn = data?.status === "WITHDRAWN" || data?.withdrawn === true;
+  const manual    = data?.withdraw_action === "manual";
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Order" value={data?.order_ref || data?.order_id?.slice(0,8) || "—"} color={withdrawn ? "text-slate-600" : "text-amber-500"}/>
+        <SummaryCard label="Status" value={data?.status || "—"} color={withdrawn ? "text-slate-600" : "text-amber-500"}/>
+      </div>
+      {data?.marketplace_url && (
+        <div className="bg-slate-100 border border-slate-300 rounded-lg px-4 py-2 flex items-center gap-2">
+          <span className="text-xs text-slate-400 font-medium w-28 shrink-0">Marketplace</span>
+          <a href={data.marketplace_url} target="_blank" rel="noreferrer" className="text-xs text-brand underline break-all">{data.marketplace_url}</a>
+        </div>
+      )}
+      {manual && !withdrawn && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-3">
+          <span className="text-xl">⊗</span>
+          <div>
+            <div className="text-sm font-semibold text-amber-800">Manual withdrawal required</div>
+            <div className="text-xs text-amber-700 mt-0.5">Open the Marketplace link above → <strong>Consumers</strong> tab → find this order → click <strong>Withdraw</strong>.</div>
+          </div>
+        </div>
+      )}
+      {withdrawn && (
+        <div className="bg-slate-50 border border-slate-300 rounded-lg p-3 flex items-center gap-3">
+          <span className="text-xl">⊗</span>
+          <div>
+            <div className="text-sm font-semibold text-slate-700">Access withdrawn</div>
+            <div className="text-xs text-slate-500">Full governance lifecycle demonstrated: onboard → govern → publish → access → revoke.</div>
+          </div>
+        </div>
+      )}
+      {data?.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error}</pre></div>}
+    </div>
+  );
+}
+
+function UsageContextResult({ data }) {
+  const ok = data?.status === "done" || data?.status === "partial";
+  const created = data?.created || [];
+  const skipped = data?.skipped || [];
+  const failed  = data?.failed  || [];
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-3">
+        <SummaryCard label="Created" value={created.length} color="text-emerald-600"/>
+        <SummaryCard label="Skipped" value={skipped.length} color="text-amber-600"/>
+        <SummaryCard label="Failed"  value={failed.length}  color={failed.length ? "text-red-500" : "text-slate-400"}/>
+      </div>
+      {created.length > 0 && (
+        <div className="bg-slate-100 border border-slate-300 rounded-lg p-4">
+          <div className="text-xs font-semibold text-slate-500 mb-2">Created</div>
+          <div className="flex flex-wrap gap-2">{created.map(c => <span key={c} className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">{c}</span>)}</div>
+        </div>
+      )}
+      {skipped.length > 0 && (
+        <div className="bg-slate-100 border border-slate-300 rounded-lg p-4">
+          <div className="text-xs font-semibold text-slate-500 mb-2">Already existed</div>
+          <div className="flex flex-wrap gap-2">{skipped.map(c => <span key={c} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">{c}</span>)}</div>
+        </div>
+      )}
+      {failed.length > 0 && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{JSON.stringify(failed, null, 2)}</pre></div>}
+    </div>
+  );
+}
+
+function GovernMetadataResult({ data }) {
+  const all = [
+    { label: "Taxonomy",          key: "taxonomy" },
+    { label: "Domain Structure",  key: "domain_structure" },
+    { label: "System & Dataset",  key: "system_dataset" },
+  ];
+  const allOk = all.every(s => {
+    const r = data?.[s.key]; const st = r?.status || "";
+    return ["created","existing","done","published","linked","found","complete","ok"].some(v => st.includes(v)) || (s.key === "taxonomy" && r?.result);
+  });
+  return (
+    <div className="space-y-3">
+      <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm">
+        {all.map(s => <SubStepRow key={s.key} label={s.label} result={
+          s.key === "taxonomy"
+            ? { status: data?.[s.key]?.result ? "done" : data?.[s.key] ? "done" : "" }
+            : data?.[s.key]
+        }/>)}
+      </div>
+      {allOk && <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm font-semibold text-emerald-800">✓ Metadata governance complete</div>}
+    </div>
+  );
+}
+
+function DataQualityResult({ data }) {
+  const dqR   = data?.dq_rules;
+  const scR   = data?.scores;
+  const dqOk  = dqR?.rules != null || dqR?.plan != null;
+  const scOk  = scR?.pushed > 0 || scR?.scores?.length > 0;
+  const dqCount = dqR?.rules?.occurrences_registered?.length ?? dqR?.rules?.rules_created ?? null;
+  const scCount = scR?.pushed ?? scR?.scores?.length ?? null;
+  const allOk = dqOk && scOk;
+  return (
+    <div className="space-y-3">
+      <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm">
+        <SubStepRow label="DQ Rules"        result={{ status: dqOk ? "done" : dqR ? "failed" : "", error: dqR?.error }} detail={dqCount != null ? `${dqCount} rule occurrences` : null}/>
+        <SubStepRow label="Generate Scores" result={{ status: scOk ? "done" : scR ? "done" : "",  error: scR?.error  }} detail={scCount != null ? `${scCount} scores pushed` : null}/>
+      </div>
+      {allOk && <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm font-semibold text-emerald-800">✓ DQ rules and scores registered in CDGC</div>}
+    </div>
+  );
+}
+
+function PublishGovernanceResult({ data }) {
+  const r = data?.result || data || {};
+  const ok = r.job_id || r.scan_triggered;
+  const jobId = r.job_id || "—";
+  const source = r.catalog_source || "—";
+  const status = r.status || (ok ? "Triggered" : "—");
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <SummaryCard label="Status"         value={status} color={ok ? "text-emerald-600" : "text-red-500"}/>
+        <SummaryCard label="Catalog Source" value={source} color="text-slate-600"/>
+      </div>
+      {jobId !== "—" && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg border border-slate-200">
+          <span className="text-xs text-slate-400 font-medium shrink-0">Job ID</span>
+          <span className="text-xs font-mono text-slate-600 break-all">{jobId}</span>
+        </div>
+      )}
+      {ok && <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm font-semibold text-emerald-800">✓ MCC scan triggered — real DQ scores will publish to the Governance Catalog</div>}
+      {data?.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><pre className="text-xs text-red-700 whitespace-pre-wrap">{data.error}</pre></div>}
+    </div>
+  );
+}
+
+const RESULT_RENDERERS = {
+  discover:           DiscoverResult,
+  scan:               ScanResult,
+  taxonomy:           TaxonomyResult,
+  domain_structure:   DomainStructureResult,
+  curate:             CurateResult,
+  data_quality:       DataQualityResult,
+  publish_governance: PublishGovernanceResult,
+  create_collection:        CreateCollectionResult,
+  publish_marketplace_full: PublishMarketplaceFullResult,
+  configure_delivery:       ConfigureDeliveryResult,
+  consumer_access:     ConsumerAccessResult,
+  verify_access:       VerifyAccessResult,
+  withdraw_access:     WithdrawAccessResult,
+};
+
+// ── Main App ──────────────────────────────────────────────────────────────────
+
+const LS_KEY = "idmc_gov_ui_state";
+
+function loadPersistedState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+const VALID_STEP_IDS = new Set(STEPS.map(s => s.id));
+
+function App() {
+  const _saved = loadPersistedState();
+  const _savedStep = _saved?.activeStep;
+  const _initStep = (_savedStep && VALID_STEP_IDS.has(_savedStep)) ? _savedStep : "discover";
+
+  const [activeStep, setActiveStep] = useState(_initStep);
+  const [statuses,   setStatuses]   = useState(_saved?.statuses   || {});
+  const [results,    setResults]    = useState(_saved?.results     || {});
+  const [errors,     setErrors]     = useState({});
+  const [showJson,   setShowJson]   = useState({});
+  const abortRef = useRef(null);
+
+  const [scanTable,  setScanTable]  = useState(_saved?.scanTable  || "");
+  const [scanSchema, setScanSchema] = useState(_saved?.scanSchema || "");
+  // Domain structure approval state
+  const [domainItems,    setDomainItems]    = useState([]);
+  const [domainSelected, setDomainSelected] = useState(new Set());
+  const [domainRenames,  setDomainRenames]  = useState({});
+  const [domainApproving, setDomainApproving] = useState(false);
+  const [subRunning, setSubRunning] = useState({});
+
+  // Persist key state to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({ activeStep, statuses, results, scanTable, scanSchema }));
+    } catch {}
+  }, [activeStep, statuses, results, scanTable, scanSchema]);
+
+  const discoverTables = results.discover?.result?.tables_for_selection || [];
+
+  const setStatus = (id, s) => setStatuses(prev => ({ ...prev, [id]: s }));
+
+  const stopStep = useCallback((stepId) => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    setStatus(stepId, STATUS.idle);
+    setErrors(prev => ({ ...prev, [stepId]: null }));
+  }, []);
+
+  const runSubStep = useCallback(async (parentStepId, subKey, apiPath) => {
+    setSubRunning(prev => ({ ...prev, [subKey]: true }));
+    setErrors(prev => ({ ...prev, [parentStepId]: null }));
+    try {
+      const data = await apiPost(apiPath, {});
+      setResults(prev => ({ ...prev, [parentStepId]: { ...(prev[parentStepId] || {}), [subKey]: data } }));
+      const allKeys = parentStepId === "publish_marketplace_full"
+        ? ["category","data_asset","collection","publish"]
+        : ["usage_context","delivery_template","terms_of_use","delivery_target"];
+      setStatuses(prev => {
+        const merged = { ...(prev[parentStepId] === STATUS.done ? {} : {}), ...((results[parentStepId] || {})) };
+        return { ...prev, [parentStepId]: STATUS.done };
+      });
+    } catch(e) {
+      setResults(prev => ({ ...prev, [parentStepId]: { ...(prev[parentStepId] || {}), [subKey]: { status: "failed", error: e.message } } }));
+      setStatuses(prev => ({ ...prev, [parentStepId]: STATUS.done }));
+    } finally {
+      setSubRunning(prev => ({ ...prev, [subKey]: false }));
+    }
+  }, [results]);
+
+  const runStep = useCallback(async (stepId) => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setStatus(stepId, STATUS.running);
+    setErrors(prev => ({ ...prev, [stepId]: null }));
+    try {
+      let data;
+      const sig = controller.signal;
+      if      (stepId === "discover")         data = await apiPost("/api/step/discover", {}, sig);
+      else if (stepId === "scan")             data = await apiPost("/api/step/scan", { table: scanTable, schema: scanSchema }, sig);
+      else if (stepId === "taxonomy")         data = await apiPost("/api/step/taxonomy", {}, sig);
+      else if (stepId === "domain_structure") {
+        const preview = await apiPost("/api/step/domain_structure/preview", {}, sig);
+        if (preview?.result?.awaiting_approval) {
+          const allItems = preview.result.items || [];
+          setDomainItems(allItems);
+          setDomainSelected(new Set(allItems.map(i => i.name)));
+          setDomainRenames({});
+          abortRef.current = null;
+          setStatus(stepId, STATUS.idle);
+          return;
+        }
+        data = preview;
+      }
+      else if (stepId === "curate")            data = await apiPost("/api/step/curate", {}, sig);
+      else if (stepId === "data_quality")      data = await apiPost("/api/step/data_quality", {}, sig);
+      else if (stepId === "publish_governance")    data = await apiPost("/api/step/mcc_scan", {}, sig);
+      else if (stepId === "create_collection")     data = await apiPost("/api/step/create_collection", {}, sig);
+      else if (stepId === "publish_marketplace_full") data = await apiPost("/api/step/publish_marketplace", {}, sig);
+      else if (stepId === "publish_marketplace_full") data = await apiPost("/api/step/publish_marketplace_full", {}, sig);
+      else if (stepId === "configure_delivery")       data = await apiPost("/api/step/configure_delivery", {}, sig);
+      else if (stepId === "consumer_access")        data = await apiPost("/api/step/consumer_access", {}, sig);
+      else if (stepId === "auto_approve_access") {
+        data = await apiPost("/api/step/auto_approve_access", {}, sig);
+        setResults(prev => ({ ...prev, consumer_access: data }));
+        setStatus("consumer_access", STATUS.done);
+        return;
+      }
+      else if (stepId === "verify_access")          data = await apiPost("/api/step/verify_access", {}, sig);
+      else if (stepId === "withdraw_access")       data = await apiPost("/api/step/withdraw_access", {}, sig);
+
+      abortRef.current = null;
+      setResults(prev => ({ ...prev, [stepId]: data }));
+      const isFailed = data?.status === "failed" || (typeof data?.status === "number" && data.status >= 400);
+      setStatus(stepId, isFailed ? STATUS.error : STATUS.done);
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      setErrors(prev => ({ ...prev, [stepId]: err.message }));
+      setStatus(stepId, STATUS.error);
+    }
+  }, [scanTable, scanSchema]);
+
+  const approveDomainStructure = useCallback(async () => {
+    setDomainApproving(true);
+    setStatus("domain_structure", STATUS.running);
+    setErrors(prev => ({ ...prev, domain_structure: null }));
+    try {
+      const domainData = await apiPost("/api/step/domain_structure/approve", {
+        approved_names: Array.from(domainSelected),
+        renames: Object.keys(domainRenames).length > 0 ? domainRenames : undefined,
+      });
+      const sysData = await apiPost("/api/step/system_dataset", {});
+      setResults(prev => ({ ...prev, domain_structure: { ...domainData, system_dataset: sysData } }));
+      setStatus("domain_structure", STATUS.done);
+      setDomainItems([]);
+    } catch (err) {
+      setErrors(prev => ({ ...prev, domain_structure: err.message }));
+      setStatus("domain_structure", STATUS.error);
+    } finally {
+      setDomainApproving(false);
+    }
+  }, [domainSelected]);
+
+  const toggleDomainItem = useCallback((name) => {
+    setDomainSelected(prev => {
+      const next = new Set(prev);
+      const item = domainItems.find(i => i.name === name);
+      if (next.has(name)) {
+        // deselect: cascade DOWN — uncheck all children
+        next.delete(name);
+        if (item?.type === "Domain") {
+          domainItems.filter(i => i.type === "SubDomain" && i.parent === name).forEach(sd => {
+            next.delete(sd.name);
+            domainItems.filter(i => i.type === "BusinessTerm" && i.parent === sd.name).forEach(bt => next.delete(bt.name));
+          });
+        }
+        if (item?.type === "SubDomain") {
+          domainItems.filter(i => i.type === "BusinessTerm" && i.parent === name).forEach(bt => next.delete(bt.name));
+        }
+      } else {
+        // select: cascade DOWN — check all children
+        next.add(name);
+        if (item?.type === "Domain") {
+          domainItems.filter(i => i.type === "SubDomain" && i.parent === name).forEach(sd => {
+            next.add(sd.name);
+            domainItems.filter(i => i.type === "BusinessTerm" && i.parent === sd.name).forEach(bt => next.add(bt.name));
+          });
+        }
+        if (item?.type === "SubDomain") {
+          domainItems.filter(i => i.type === "BusinessTerm" && i.parent === name).forEach(bt => next.add(bt.name));
+          // cascade UP to Domain
+          const dom = domainItems.find(i => i.type === "Domain" && i.name === item.parent);
+          if (dom) next.add(dom.name);
+        }
+        if (item?.type === "BusinessTerm") {
+          // cascade UP to SubDomain and Domain
+          const sd = domainItems.find(i => i.type === "SubDomain" && i.name === item.parent);
+          if (sd) {
+            next.add(sd.name);
+            const dom = domainItems.find(i => i.type === "Domain" && i.name === sd.parent);
+            if (dom) next.add(dom.name);
+          }
+        }
+      }
+      return next;
+    });
+  }, [domainItems]);
+
+  const toggleDomainGroup = useCallback((names, add) => {
+    setDomainSelected(prev => {
+      const next = new Set(prev);
+      names.forEach(n => {
+        if (add) {
+          next.add(n);
+          // cascade up when selecting a group
+          const item = domainItems.find(i => i.name === n);
+          if (item?.type === "BusinessTerm") {
+            const sd = domainItems.find(i => i.type === "SubDomain" && i.name === item.parent);
+            if (sd) {
+              next.add(sd.name);
+              const dom = domainItems.find(i => i.type === "Domain" && i.name === sd.parent);
+              if (dom) next.add(dom.name);
+            }
+          }
+          if (item?.type === "SubDomain") {
+            const dom = domainItems.find(i => i.type === "Domain" && i.name === item.parent);
+            if (dom) next.add(dom.name);
+          }
+        } else {
+          next.delete(n);
+        }
+      });
+      return next;
+    });
+  }, [domainItems]);
+
+  const renameDomainItem = useCallback((oldName, newName) => {
+    // Track rename: resolve back to original name in case item was already renamed once
+    setDomainRenames(prev => {
+      const original = Object.keys(prev).find(k => prev[k] === oldName) || oldName;
+      const next = { ...prev };
+      if (original === newName) { delete next[original]; } else { next[original] = newName; }
+      return next;
+    });
+    setDomainItems(prev => prev.map(i => {
+      if (i.name === oldName) return { ...i, name: newName };
+      if (i.parent === oldName) return { ...i, parent: newName };
+      return i;
+    }));
+    setDomainSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(oldName)) { next.delete(oldName); next.add(newName); }
+      return next;
+    });
+  }, []);
+
+  const skipStep = useCallback((stepId) => {
+    setStatus(stepId, STATUS.skipped);
+    setResults(prev => ({ ...prev, [stepId]: null }));
+  }, []);
+
+  const active = STEPS.find(s => s.id === activeStep) || STEPS[0];
+  const ResultComponent = RESULT_RENDERERS[activeStep];
+  const canRun = (activeStep !== "scan" || (scanTable && scanSchema))
+              && (activeStep !== "marketplace" || marketplaceCollectionId);
+
+  return (
+    <div className="flex flex-col h-screen text-slate-800">
+
+      {/* Header */}
+      <header className="flex items-center gap-4 px-6 py-3.5 bg-slate-100 border-b border-slate-300 shadow-sm shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center font-bold text-white text-sm shadow-md shadow-indigo-200">I</div>
+          <div>
+            <div className="font-bold text-slate-800 text-sm tracking-wide">INCEPT</div>
+            <div className="text-xs text-slate-400 -mt-0.5 tracking-widest uppercase">Data Governance</div>
+          </div>
+        </div>
+        <div className="h-5 w-px bg-slate-200 mx-1"/>
+        <div className="text-sm text-slate-500">IDMC CDGC Onboarding Pipeline</div>
+        <div className="ml-auto flex items-center gap-3">
+          <button
+            onClick={() => { localStorage.removeItem(LS_KEY); window.location.reload(); }}
+            className="text-xs px-3 py-1.5 rounded-lg border border-red-300 text-red-500 font-semibold bg-red-50 hover:bg-red-100 hover:border-red-400 transition-colors"
+            title="Clear session and start fresh"
+          >↺ New Session</button>
+          <div className="w-2 h-2 rounded-full bg-emerald-500"/>
+          <span className="text-xs text-slate-400 font-medium">MCP servers online</span>
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* Sidebar */}
+        <aside className="w-60 bg-slate-100 border-r border-slate-300 flex flex-col shrink-0 overflow-hidden py-1">
+          {STEPS.map(step => {
+            const status = statuses[step.id] || STATUS.idle;
+            const isActive = step.id === activeStep;
+            return (
+              <button
+                key={step.id}
+                onClick={() => setActiveStep(step.id)}
+                className={`w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors text-xs
+                  ${isActive
+                    ? "bg-indigo-50 text-indigo-700 border-r-2 border-brand font-semibold"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"}`}
+              >
+                <StatusDot status={status}/>
+                <span className="flex-1 truncate">{step.label}</span>
+                <span className={`text-xs font-medium ${isActive ? "text-indigo-400" : "text-slate-300"}`}>{step.num}</span>
+              </button>
+            );
+          })}
+        </aside>
+
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto scrollbar-thin bg-slate-200 p-6">
+          <div className="max-w-2xl mx-auto space-y-5">
+
+            {/* Step header */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                {(() => { const idx = STEPS.findIndex(s => s.id === activeStep); const prev = STEPS[idx - 1]; return prev ? (
+                  <button onClick={() => setActiveStep(prev.id)} className="text-xs text-slate-400 hover:text-brand font-medium mr-1">← {prev.label}</button>
+                ) : null; })()}
+                <span className="text-xs font-mono text-slate-400 font-medium">STEP {active.num} / {STEPS.length}</span>
+                {statuses[activeStep] === STATUS.running && <Spinner/>}
+              </div>
+              <h1 className="text-xl font-bold text-slate-800">{active.label}</h1>
+              <p className="text-sm text-slate-500 mt-0.5">{active.desc}</p>
+            </div>
+
+            {/* Scan inputs */}
+            {activeStep === "scan" && (
+              <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-300 shadow-sm">
+                <div>
+                  <label className="block text-xs text-slate-500 font-medium mb-1">Table</label>
+                  {discoverTables.length > 0 ? (
+                    <select
+                      value={scanTable}
+                      onChange={e => {
+                        const t = discoverTables.find(x => x.name === e.target.value);
+                        setScanTable(e.target.value);
+                        if (t) setScanSchema(t.schema);
+                      }}
+                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-indigo-100"
+                    >
+                      <option value="">Select a table…</option>
+                      {discoverTables.map(t => (
+                        <option key={t.name} value={t.name}>{t.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text" placeholder="TABLE_NAME" value={scanTable}
+                      onChange={e => setScanTable(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-indigo-100 font-mono"
+                    />
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 font-medium mb-1">Schema</label>
+                  <input
+                    type="text" placeholder="SCHEMA_NAME" value={scanSchema}
+                    onChange={e => setScanSchema(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-indigo-100 font-mono"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Marketplace collection ID input */}
+            {activeStep === "marketplace" && (
+              <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-300 shadow-sm">
+                <div>
+                  <label className="block text-xs text-slate-500 font-medium mb-1">Data Marketplace Collection ID</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. a1b2c3d4-e5f6-..."
+                    value={marketplaceCollectionId}
+                    onChange={e => setMarketplaceCollectionId(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-indigo-100 font-mono"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Found in your DMP instance under Data Collections. Set <code>DMP_COLLECTION_ID</code> in .env to pre-fill.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Domain structure approval panel */}
+            {activeStep === "domain_structure" && domainItems.length > 0 && statuses["domain_structure"] !== STATUS.done && (
+              <DomainApprovalPanel
+                items={domainItems}
+                selected={domainSelected}
+                onToggle={toggleDomainItem}
+                onToggleGroup={toggleDomainGroup}
+                onSelectAll={() => setDomainSelected(new Set(domainItems.map(i => i.name)))}
+                onDeselectAll={() => setDomainSelected(new Set())}
+                onApprove={approveDomainStructure}
+                onRename={renameDomainItem}
+                approving={domainApproving}
+              />
+            )}
+
+            {/* Sub-step buttons for Steps 10 & 11 */}
+            {(activeStep === "data_quality" || activeStep === "create_collection" || activeStep === "configure_delivery") && (() => {
+              const subSteps = activeStep === "data_quality" ? [
+                { key: "dq_rules", label: "DQ Rules",       path: "/api/step/dq_rules" },
+                { key: "scores",   label: "Generate Scores", path: "/api/step/scores" },
+              ] : activeStep === "create_collection" ? [
+                { key: "category",   label: "Category",      path: "/api/step/cdmp_category" },
+                { key: "data_asset", label: "Data Asset",    path: "/api/step/cdmp_data_asset" },
+                { key: "collection", label: "Collection",    path: "/api/step/cdmp_collection" },
+              ] : [
+                { key: "usage_context",     label: "Usage Contexts",   path: "/api/step/usage_context" },
+                { key: "delivery_template", label: "Delivery Template", path: "/api/step/delivery_template" },
+                { key: "terms_of_use",      label: "Terms of Use",     path: "/api/step/terms_of_use" },
+                { key: "delivery_target",   label: "Delivery Target",  path: "/api/step/delivery_target" },
+              ];
+              const anyRunning = statuses[activeStep] === STATUS.running || Object.values(subRunning).some(Boolean);
+              return (
+                <div className="space-y-2">
+                  <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">Run individually</div>
+                <div className="flex flex-wrap gap-2">
+                  {subSteps.map(ss => {
+                    const isRunning = subRunning[ss.key];
+                    const res = results[activeStep]?.[ss.key];
+                    const ok = res && !res.error && ["created","existing","done","published","linked","already_linked","found","partial"].some(v => (res.status||"").includes(v));
+                    const failed = res?.error || (res && (res.status||"").includes("failed"));
+                    return (
+                      <button
+                        key={ss.key}
+                        onClick={() => runSubStep(activeStep, ss.key, ss.path)}
+                        disabled={anyRunning}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all shadow-sm
+                          ${isRunning ? "bg-indigo-100 border-indigo-300 text-indigo-500 cursor-not-allowed"
+                          : failed    ? "bg-red-100 border-red-400 text-red-700 hover:bg-red-200"
+                          : ok        ? "bg-emerald-100 border-emerald-400 text-emerald-800 hover:bg-emerald-200"
+                          :             "bg-indigo-600 border-indigo-700 text-white hover:bg-indigo-500"}`}
+                      >
+                        {isRunning ? <Spinner/> : ok ? <span className="text-emerald-500">✓</span> : failed ? <span className="text-red-500">✗</span> : null}
+                        {ss.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                </div>
+              );
+            })()}
+
+            {/* Run / Stop / Skip buttons */}
+            {!(activeStep === "domain_structure" && domainItems.length > 0 && statuses["domain_structure"] !== STATUS.done) && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => runStep(activeStep)}
+                disabled={statuses[activeStep] === STATUS.running || !canRun}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-all
+                  ${statuses[activeStep] === STATUS.running || !canRun
+                    ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                    : "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-md shadow-indigo-200 hover:shadow-indigo-300"}`}
+              >
+                {statuses[activeStep] === STATUS.running ? (
+                  <><Spinner/> Running…</>
+                ) : statuses[activeStep] === STATUS.done ? (
+                  <><span className="text-emerald-300">✓</span> Re-run Step</>
+                ) : (
+                  <><span>▶</span> Run Step</>
+                )}
+              </button>
+
+              {statuses[activeStep] === STATUS.running && (
+                <button
+                  onClick={() => stopStep(activeStep)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 hover:border-red-300 transition-all"
+                >
+                  <span>■</span> Stop
+                </button>
+              )}
+
+              {SKIPPABLE.has(activeStep) && statuses[activeStep] !== STATUS.running && (
+                <button
+                  onClick={() => skipStep(activeStep)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm text-slate-600 border border-slate-300 bg-slate-50 hover:border-slate-400 hover:text-slate-800 shadow-sm transition-all"
+                >
+                  Skip
+                </button>
+              )}
+            </div>
+            )}
+
+            {/* Error */}
+            {errors[activeStep] && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                <div className="text-xs font-semibold text-red-600 mb-1 uppercase tracking-wider">Error</div>
+                <div className="text-sm text-red-700 font-mono">{errors[activeStep]}</div>
+              </div>
+            )}
+
+            {/* Skipped notice */}
+            {statuses[activeStep] === STATUS.skipped && (() => {
+              const idx = STEPS.findIndex(s => s.id === activeStep);
+              const next = STEPS[idx + 1];
+              return (
+                <div className="space-y-3">
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-300 shadow-sm flex items-center gap-3">
+                    <span className="text-slate-400 text-lg">⊘</span>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-600">Step skipped</div>
+                      <div className="text-xs text-slate-400">This step was skipped for this demo run.</div>
+                    </div>
+                  </div>
+                  {next && (
+                    <div className="flex justify-end pt-1">
+                      <button
+                        onClick={() => setActiveStep(next.id)}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm bg-slate-50 border border-slate-300 text-slate-600 hover:border-brand hover:text-brand shadow-sm transition-all"
+                      >
+                        Next: {next.label} <span>→</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Results */}
+            {results[activeStep] && !(activeStep === "domain_structure" && domainItems.length > 0 && statuses["domain_structure"] !== STATUS.done) && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Result</div>
+                  <button
+                    onClick={() => setShowJson(prev => ({ ...prev, [activeStep]: !prev[activeStep] }))}
+                    className="text-xs text-slate-400 hover:text-brand font-medium"
+                  >
+                    {showJson[activeStep] ? "Show summary" : "Show raw JSON"}
+                  </button>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-300 shadow-sm">
+                  {showJson[activeStep]
+                    ? <JsonViewer data={results[activeStep]}/>
+                    : <ResultComponent data={results[activeStep]} domainItems={domainItems} domainSelected={domainSelected}/>
+                  }
+                </div>
+
+                {(statuses[activeStep] === STATUS.done || statuses[activeStep] === STATUS.skipped) && (() => {
+                  const idx = STEPS.findIndex(s => s.id === activeStep);
+                  const next = STEPS[idx + 1];
+                  if (!next) return null;
+                  return (
+                    <div className="flex justify-end pt-1">
+                      <button
+                        onClick={() => setActiveStep(next.id)}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm bg-slate-50 border border-slate-300 text-slate-600 hover:border-brand hover:text-brand shadow-sm transition-all"
+                      >
+                        Next: {next.label} <span>→</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+          </div>
+        </main>
+
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>

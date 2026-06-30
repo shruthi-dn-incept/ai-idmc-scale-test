@@ -1,0 +1,68 @@
+{
+  "$comment": "Threshold + template map for governance_engine_mcp.recommend_dq_rules. Tune without touching code.",
+
+  "severity": {
+    "$comment": "Affected-row ratio bands. affected/total >= high_pct → HIGH; >= medium_pct → MEDIUM; else LOW.",
+    "high_pct":   0.10,
+    "medium_pct": 0.01
+  },
+
+  "checks": {
+    "null_check": {
+      "dimension":     "COMPLETENESS",
+      "rule_template": "examples/null-check.json",
+      "name_suffix":   "NULL_CHECK",
+      "min_null_pct":  0.0
+    },
+
+    "blank_string_check": {
+      "dimension":      "COMPLETENESS",
+      "rule_template":  "examples/completeness-check.json",
+      "name_suffix":    "BLANK_CHECK",
+      "min_blank_count": 1,
+      "applies_to_types": ["string", "varchar", "text"]
+    },
+
+    "range_check": {
+      "dimension":             "ACCURACY",
+      "rule_template":         "examples/range-check.json",
+      "name_suffix":           "RANGE_CHECK",
+      "applies_to_types":      ["int", "integer", "bigint", "decimal", "numeric", "float", "double"],
+      "min_out_of_range_count": 1
+    },
+
+    "format_check": {
+      "dimension":               "VALIDITY",
+      "rule_template":           "examples/format-check.json",
+      "name_suffix":             "FORMAT_CHECK",
+      "applies_to_types":        ["string", "varchar", "text"],
+      "min_pattern_count":        2,
+      "max_dominant_pattern_pct": 0.95
+    },
+
+    "timeliness_check": {
+      "dimension":         "TIMELINESS",
+      "rule_template":     "examples/timeliness-check.json",
+      "name_suffix":       "TIMELINESS_CHECK",
+      "applies_to_types":  ["date", "datetime", "timestamp"],
+      "max_stale_age_days": 365,
+      "trigger_on": ["future_count", "stale_count"]
+    },
+
+    "consistency_check": {
+      "dimension":           "CONSISTENCY",
+      "rule_template":       "examples/consistency-check.json",
+      "name_suffix":         "CONSISTENCY_CHECK",
+      "min_pair_violations": 1
+    },
+
+    "uniqueness_check": {
+      "dimension":            "UNIQUENESS",
+      "rule_template":        "examples/uniqueness-check.json",
+      "name_suffix":          "UNIQUENESS_CHECK",
+      "id_column_suffixes":   ["_id", "_key", "_no", "_num", "_pk"],
+      "id_column_substrings": ["id", "key", "uuid", "guid"],
+      "min_duplicate_count":  1
+    }
+  }
+}

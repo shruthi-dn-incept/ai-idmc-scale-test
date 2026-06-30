@@ -1,0 +1,38 @@
+{
+  "servers": {
+    "cdgc-metadata-search": {
+      "type": "http",
+      "url": "https://a2e-preview-c360-usw1-mcp.dmp-us.informaticacloud.com/mcp-servers/public/cdgcsearchmetadata",
+      "headers": {
+        "IDS-SESSION-ID": "${env:IDMC_SESSION_ID}"
+      }
+    },
+    "job-management": {
+      "type": "http",
+      "url": "https://a2e-preview-c360-usw1-mcp.dmp-us.informaticacloud.com/mcp-servers/public/jobmanagement",
+      "headers": {
+        "IDS-SESSION-ID": "${env:IDMC_SESSION_ID}"
+      }
+    },
+    "governance-engine": {
+      "type": "http",
+      "url": "http://127.0.0.1:8765/mcp"
+    },
+    "lineage-reporter": {
+      "type": "http",
+      "url": "http://127.0.0.1:8766/mcp"
+    },
+    "glossary-manager": {
+      "type": "http",
+      "url": "http://127.0.0.1:8767/mcp"
+    },
+    "dq-monitor": {
+      "type": "http",
+      "url": "http://127.0.0.1:8768/mcp"
+    },
+    "data-onboarding": {
+      "type": "http",
+      "url": "http://127.0.0.1:8769/mcp"
+    }
+  }
+}
