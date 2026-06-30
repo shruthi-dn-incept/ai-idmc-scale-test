@@ -27,8 +27,8 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 from pydantic import BaseModel
 
-AI_GOVERNANCE_URL     = "http://127.0.0.1:8770/mcp"
-GOVERNANCE_ENGINE_URL = "http://127.0.0.1:8765/mcp"
+AI_GOVERNANCE_URL     = os.getenv("AI_GOVERNANCE_URL",     "http://127.0.0.1:8770/mcp")
+GOVERNANCE_ENGINE_URL = os.getenv("GOVERNANCE_ENGINE_URL", "http://127.0.0.1:8765/mcp")
 
 def _read_env_file() -> dict[str, str]:
     env: dict[str, str] = {}
@@ -441,4 +441,5 @@ async def step_withdraw_access():
 app.mount("/", StaticFiles(directory="ui_static", html=True), name="static")
 
 if __name__ == "__main__":
-    uvicorn.run("governance_ui:app", host="127.0.0.1", port=8080, reload=False, log_level="info")
+    _port = int(os.getenv("GOVERNANCE_UI_PORT", "8080"))
+    uvicorn.run("governance_ui:app", host="127.0.0.1", port=_port, reload=False, log_level="info")
