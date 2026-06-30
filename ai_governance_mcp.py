@@ -205,7 +205,7 @@ def _get_jwt() -> str:
             return str(_jwt_cache["token"])
         env = _read_env()
         cached_jwt = env.get("IDMC_JWT", "")
-        minted_at  = float(env.get("IDMC_JWT_MINTED_AT", "0"))
+        minted_at  = float(env.get("IDMC_JWT_MINTED_AT") or "0")
         if cached_jwt and (now - minted_at) < JWT_TTL_SECONDS:
             _jwt_cache["token"] = cached_jwt
             _jwt_cache["expires_at"] = minted_at + JWT_TTL_SECONDS
