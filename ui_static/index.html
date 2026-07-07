@@ -55,7 +55,7 @@ const STEPS = [
   { id: "scan",            num: 2, label: "Scan Table",                icon: "◈", desc: "Select a table and fetch its column metadata (cached after first run)." },
   { id: "taxonomy",        num: 3, label: "Generate Taxonomy",         icon: "◫", desc: "LLM generates a domain / subdomain / business-term tree from the scanned column metadata." },
   { id: "domain_structure",num: 4, label: "Domain Structure",          icon: "◧", desc: "Review and approve the proposed domain hierarchy, then write it to CDGC and register the source system and dataset." },
-  { id: "curate",          num: 5, label: "Curate Columns",            icon: "◩", desc: "Link every column to its matching business term (batched)." },
+  { id: "curate",          num: 5, label: "Curate Columns",            icon: "◩", desc: "Link every column to its matching business term." },
   { id: "data_quality",           num: 6,  label: "Data Quality",                    icon: "◎", desc: "Creates DQ rules and generates interim scores for all registered rule occurrences in CDGC." },
   { id: "publish_governance",     num: 7,  label: "Publish to Governance Catalog",        icon: "◉", desc: "Triggers the MCC scan — CDQ rules run on live Snowflake data (5000 rows) and publish real DQ scores to the Governance Catalog." },
 ];
@@ -340,11 +340,40 @@ function ScanResult({ data, scanSource, scanSchema }) {
   );
 }
 
+// Shared full-schema time-estimate banner (steps 2-6), styled like the Scan banner.
+function EstimateBanner({ data }) {
+  const elapsed = data?.elapsed_seconds ?? 0;
+  const sample  = data?.sample_tables ?? 0;
+  const total   = data?.total_in_schema ?? 0;
+  const estMin  = data?.estimated_full_minutes ?? 0;
+  const fixed   = data?.fixed_cost === true;
+  if (!elapsed) return null;
+  const estLabel = estMin >= 60 ? `~${(estMin / 60).toFixed(1)} hr` : estMin > 0 ? `~${estMin} min` : null;
+  // Fixed-cost step (e.g. Domain Structure): one-time write, does not scale with tables.
+  if (fixed) {
+    return (
+      <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-sm text-green-700 font-medium flex flex-wrap items-center gap-2">
+        <span>Completed in <strong>{elapsed}s</strong></span>
+        <span className="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">One-time step — does not scale with table count</span>
+      </div>
+    );
+  }
+  return (
+    <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-sm text-green-700 font-medium flex flex-wrap items-center gap-2">
+      <span>Processed <strong>{sample}</strong> {sample === 1 ? "table" : "tables"}{total > sample ? ` of ${total.toLocaleString()}` : ""} — <strong>{elapsed}s</strong></span>
+      {estLabel && total > sample && (
+        <span className="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">Full schema: {estLabel} ({total.toLocaleString()} tables)</span>
+      )}
+    </div>
+  );
+}
+
 function TaxonomyResult({ data }) {
   const domains = data?.domains || data?.result?.domains || [];
   const s = data?._summary || data?.result?._summary || {};
   return (
     <div className="space-y-4">
+      <EstimateBanner data={data} />
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard label="Domains"    value={s.domain_count || domains.length}/>
         <SummaryCard label="Subdomains" value={s.subdomain_count || "—"}/>
@@ -386,6 +415,7 @@ function DomainStructureResult({ data, domainItems, domainSelected }) {
 
   return (
     <div className="space-y-4">
+      <EstimateBanner data={data} />
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard label="Created" value={s.created_count ?? created.length} color="text-emerald-600"/>
         <SummaryCard label="Skipped" value={s.skipped_count ?? skipped.length} color="text-amber-600"/>
@@ -676,6 +706,7 @@ function CurateResult({ data }) {
   const pct          = last.progress?.match(/\((\d+)%\)/)?.[1] || "100";
   return (
     <div className="space-y-4">
+      <EstimateBanner data={data} />
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard label="Linked"    value={totalLinked}  color="text-emerald-600"/>
         <SummaryCard label="Skipped"   value={totalSkipped} color="text-amber-600"/>
@@ -1384,6 +1415,7 @@ function DataQualityResult({ data }) {
   const allOk  = dqOk && scOk;
   return (
     <div className="space-y-3">
+      <EstimateBanner data={data} />
       <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm">
         <SubStepRow label="DQ Rules"        result={{ status: dqOk ? "done" : dqErrors.length ? "failed" : dqR ? "done" : "", error: dqR?.error }} detail={dqCount != null ? `${dqCount} rule occurrences` : null}/>
         <SubStepRow label="Generate Scores" result={{ status: scOk ? "done" : scR ? "done" : "", error: scR?.error }} detail={scCount != null ? `${scCount} scores pushed` : null}/>
@@ -1561,6 +1593,11 @@ function App() {
     try {
       let data;
       const sig = controller.signal;
+      // Basis for full-schema time estimates on steps 3-6 (from the Scan sample).
+      const estBasis = {
+        sample: results.scan?.tables_scanned ?? (results.scan?.columns?.filter(Boolean).length || 0),
+        total:  results.scan?.total_in_schema ?? 0,
+      };
       if      (stepId === "discover")         data = await apiPost("/api/step/discover", {}, sig);
       else if (stepId === "scan") {
         const isAll = scanTable === "__ALL__";
@@ -1593,10 +1630,15 @@ function App() {
         // Collect scanned table names from the scan result columns
         const scannedCols = results.scan?.columns || [];
         const scannedNames = scannedCols.map(c => c?.table).filter(Boolean);
-        data = await apiPost("/api/step/taxonomy", { table_names: scannedNames }, sig);
+        data = await apiPost("/api/step/taxonomy", {
+          table_names: scannedNames,
+          sample_tables: estBasis.sample, total_in_schema: estBasis.total,
+        }, sig);
       }
       else if (stepId === "domain_structure") {
-        const preview = await apiPost("/api/step/domain_structure/preview", {}, sig);
+        const preview = await apiPost("/api/step/domain_structure/preview", {
+          sample_tables: estBasis.sample, total_in_schema: estBasis.total,
+        }, sig);
         if (preview?.result?.awaiting_approval) {
           const allItems = preview.result.items || [];
           setDomainItems(allItems);
@@ -1608,8 +1650,8 @@ function App() {
         }
         data = preview;
       }
-      else if (stepId === "curate")            data = await apiPost("/api/step/curate", {}, sig);
-      else if (stepId === "data_quality")      data = await apiPost("/api/step/data_quality", {}, sig);
+      else if (stepId === "curate")            data = await apiPost("/api/step/curate", { sample_tables: estBasis.sample, total_in_schema: estBasis.total }, sig);
+      else if (stepId === "data_quality")      data = await apiPost("/api/step/data_quality", { sample_tables: estBasis.sample, total_in_schema: estBasis.total }, sig);
       else if (stepId === "publish_governance")    data = await apiPost("/api/step/mcc_scan", {}, sig);
       else if (stepId === "create_collection")     data = await apiPost("/api/step/create_collection", {}, sig);
       else if (stepId === "publish_marketplace_full") data = await apiPost("/api/step/publish_marketplace", {}, sig);
@@ -2095,6 +2137,24 @@ function App() {
                     {showJson[activeStep] ? "Show summary" : "Show raw JSON"}
                   </button>
                 </div>
+
+                {/* Next button (top) */}
+                {(statuses[activeStep] === STATUS.done || statuses[activeStep] === STATUS.skipped) && (() => {
+                  const idx = STEPS.findIndex(s => s.id === activeStep);
+                  const next = STEPS[idx + 1];
+                  if (!next) return null;
+                  return (
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => setActiveStep(next.id)}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm bg-slate-50 border border-slate-300 text-slate-600 hover:border-brand hover:text-brand shadow-sm transition-all"
+                      >
+                        Next: {next.label} <span>→</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-300 shadow-sm">
                   {showJson[activeStep]
                     ? <JsonViewer data={results[activeStep]}/>
@@ -2102,6 +2162,7 @@ function App() {
                   }
                 </div>
 
+                {/* Next button (bottom) */}
                 {(statuses[activeStep] === STATUS.done || statuses[activeStep] === STATUS.skipped) && (() => {
                   const idx = STEPS.findIndex(s => s.id === activeStep);
                   const next = STEPS[idx + 1];

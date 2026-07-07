@@ -186,17 +186,58 @@ async def step_scan(req: ScanRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ── Full-schema time estimate (shared by steps 2-6) ───────────────────────────
+def _estimate_block(elapsed: float, sample_tables: int, total_tables: int,
+                    fixed_cost: bool = False) -> dict:
+    """Full-schema runtime estimate from a sample run.
+
+    Per-table steps (scan/taxonomy/curate/dq): full = (elapsed / sample) * total.
+    Fixed-cost steps (domain structure — a one-time hierarchy write that does NOT
+    grow with table count): the full-schema time is just the observed elapsed, and
+    fixed_cost=True tells the UI to show elapsed only (no table extrapolation).
+    Returned fields match the Scan step so the UI renders them uniformly.
+    """
+    if fixed_cost:
+        return {
+            "elapsed_seconds":        round(elapsed, 1),
+            "sample_tables":          sample_tables,
+            "total_in_schema":        total_tables,
+            "estimated_full_minutes": round(elapsed / 60, 1),
+            "fixed_cost":             True,
+        }
+    per = (elapsed / sample_tables) if sample_tables > 0 else 0.0
+    est_min = round(per * total_tables / 60, 1) if (total_tables > 0 and sample_tables > 0) else 0
+    return {
+        "elapsed_seconds":        round(elapsed, 1),
+        "sample_tables":          sample_tables,
+        "total_in_schema":        total_tables,
+        "estimated_full_minutes": est_min,
+    }
+
+
+class EstimateRequest(BaseModel):
+    sample_tables: int = 0        # tables in the scanned sample (for time estimate)
+    total_in_schema: int = 0      # full-schema table count (for time estimate)
+
+
 # ── Step 3: Taxonomy ──────────────────────────────────────────────────────────
 
 class TaxonomyRequest(BaseModel):
     table_names: list[str] = []   # scanned table names — loaded from cache server-side
+    sample_tables: int = 0        # tables in the scanned sample (for time estimate)
+    total_in_schema: int = 0      # full-schema table count (for time estimate)
 
 @app.post("/api/step/taxonomy")
 async def step_taxonomy(req: TaxonomyRequest = TaxonomyRequest()):
     try:
-        return await _call(AI_GOVERNANCE_URL, "generate_governance_taxonomy", {
+        t0 = _time.monotonic()
+        out = await _call(AI_GOVERNANCE_URL, "generate_governance_taxonomy", {
             "table_names": req.table_names or [],
         })
+        out = dict(out) if isinstance(out, dict) else {"result": out}
+        sample = req.sample_tables or len(req.table_names or [])
+        out.update(_estimate_block(_time.monotonic() - t0, sample, req.total_in_schema))
+        return out
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -204,9 +245,15 @@ async def step_taxonomy(req: TaxonomyRequest = TaxonomyRequest()):
 # ── Step 4: Domain Structure ──────────────────────────────────────────────────
 
 @app.post("/api/step/domain_structure/preview")
-async def step_domain_structure_preview():
+async def step_domain_structure_preview(req: EstimateRequest = EstimateRequest()):
     try:
-        return await _govern("Create the domain structure in CDGC")
+        t0 = _time.monotonic()
+        out = await _govern("Create the domain structure in CDGC")
+        out = dict(out) if isinstance(out, dict) else {"result": out}
+        # Fixed-cost: writing the domain hierarchy is a one-time op, not per-table.
+        out.update(_estimate_block(_time.monotonic() - t0, req.sample_tables,
+                                   req.total_in_schema, fixed_cost=True))
+        return out
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -248,8 +295,9 @@ async def step_system_dataset():
 # ── Step 6: Curate ────────────────────────────────────────────────────────────
 
 @app.post("/api/step/curate")
-async def step_curate():
+async def step_curate(req: EstimateRequest = EstimateRequest()):
     try:
+        t0 = _time.monotonic()
         plan = await _govern("Link the columns to their business terms")
         plan_error = plan.get("error") or (plan.get("result") or {}).get("error")
         if plan_error:
@@ -268,7 +316,8 @@ async def step_curate():
             batches.append(r)
             if r.get("done"):
                 break
-        return {"plan": plan, "batches": batches}
+        return {"plan": plan, "batches": batches,
+                **_estimate_block(_time.monotonic() - t0, req.sample_tables, req.total_in_schema)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -406,8 +455,9 @@ async def step_delivery_target():
 
 
 @app.post("/api/step/data_quality")
-async def step_data_quality():
+async def step_data_quality(req: EstimateRequest = EstimateRequest()):
     result = {}
+    t0 = _time.monotonic()
     try:
         result["dq_rules"] = await step_dq_rules()
     except Exception as e:
@@ -416,6 +466,7 @@ async def step_data_quality():
         result["scores"] = await step_scores()
     except Exception as e:
         result["scores"] = {"status": "failed", "error": str(e)}
+    result.update(_estimate_block(_time.monotonic() - t0, req.sample_tables, req.total_in_schema))
     return result
 
 
