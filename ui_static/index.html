@@ -348,6 +348,9 @@ function EstimateBanner({ data }) {
   const estMin  = data?.estimated_full_minutes ?? 0;
   const fixed   = data?.fixed_cost === true;
   if (!elapsed) return null;
+  // Hide the banner when there's no real per-table count to show (avoids a
+  // misleading "Processed 0 tables"). Fixed-cost steps render without a count.
+  if (!fixed && sample <= 0) return null;
   const estLabel = estMin >= 60 ? `~${(estMin / 60).toFixed(1)} hr` : estMin > 0 ? `~${estMin} min` : null;
   // Fixed-cost step (e.g. Domain Structure): one-time write, does not scale with tables.
   if (fixed) {
