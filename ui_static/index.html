@@ -1894,43 +1894,32 @@ function App() {
             {activeStep === "scan" && (
               <div className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-300 shadow-sm">
                 {(() => {
-                  const sourceNames      = discoverSources.map(cs => cs.source).filter(Boolean);
-                  const selectedSource   = discoverSources.find(cs => cs.source === scanSource);
-                  const schemasInSource  = selectedSource ? (selectedSource.schemas || []) : [];
-                  const schemaNames      = schemasInSource.map(s => s.schema);
-                  const selectedSchemaObj = schemasInSource.find(s => s.schema === scanSchema);
-                  const tablesInSchema   = selectedSchemaObj ? (selectedSchemaObj.tables || []) : [];
+                  // Single Schema dropdown across all catalog sources; the source is
+                  // auto-derived from the chosen schema (the scan API keys off schema).
+                  const allSchemaEntries = [];
+                  discoverSources.forEach(cs => (cs.schemas || []).forEach(s =>
+                    allSchemaEntries.push({ source: cs.source, schema: s.schema, tables: s.tables || [] })));
+                  const schemaNames      = [...new Set(allSchemaEntries.map(e => e.schema))].filter(Boolean);
+                  const selectedEntry    = allSchemaEntries.find(e => e.schema === scanSchema);
+                  const tablesInSchema   = selectedEntry ? selectedEntry.tables : [];
                   // Fallback: if no grouped data, use flat discoverTables
                   const fallbackSchemas  = [...new Set(discoverTables.map(t => t.schema))].filter(Boolean);
                   const fallbackTables   = discoverTables.filter(t => t.schema === scanSchema);
+                  const pickSchema = (val) => {
+                    setScanSchema(val);
+                    setScanTable("__ALL__");
+                    const entry = allSchemaEntries.find(e => e.schema === val);
+                    setScanSource(entry ? entry.source : "");   // derive catalog source
+                  };
                   return (
                     <>
-                      {/* Catalog Source dropdown */}
-                      <div>
-                        <label className="block text-xs text-slate-500 font-medium mb-1">Catalog Source</label>
-                        {sourceNames.length > 0 ? (
-                          <select
-                            value={scanSource}
-                            onChange={e => { setScanSource(e.target.value); setScanSchema(""); setScanTable("__ALL__"); }}
-                            className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-indigo-100"
-                          >
-                            <option value="">Select a catalog source…</option>
-                            {sourceNames.map(s => <option key={s} value={s}>{s}</option>)}
-                          </select>
-                        ) : (
-                          <input type="text" placeholder="Catalog source name" value={scanSource}
-                            onChange={e => setScanSource(e.target.value)}
-                            className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-indigo-100 font-mono"
-                          />
-                        )}
-                      </div>
-                      {/* Schema dropdown */}
+                      {/* Schema dropdown (catalog source auto-derived) */}
                       <div>
                         <label className="block text-xs text-slate-500 font-medium mb-1">Schema</label>
                         {(schemaNames.length > 0 || fallbackSchemas.length > 0) ? (
                           <select
                             value={scanSchema}
-                            onChange={e => { setScanSchema(e.target.value); setScanTable("__ALL__"); }}
+                            onChange={e => pickSchema(e.target.value)}
                             className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-indigo-100"
                           >
                             <option value="">Select a schema…</option>
@@ -1938,7 +1927,7 @@ function App() {
                           </select>
                         ) : (
                           <input type="text" placeholder="SCHEMA_NAME" value={scanSchema}
-                            onChange={e => setScanSchema(e.target.value)}
+                            onChange={e => pickSchema(e.target.value)}
                             className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-indigo-100 font-mono"
                           />
                         )}
@@ -1956,7 +1945,7 @@ function App() {
                               const tbl = tablesInSchema.length > 0 ? tablesInSchema : fallbackTables;
                               return (
                                 <>
-                                  <option value="__ALL__">⚡ Scan all tables in this schema ({tbl.length} shown)</option>
+                                  <option value="__ALL__">⚡ Scan all {tbl.length.toLocaleString()} tables in this schema (samples a few, estimates full run)</option>
                                   {tbl.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}
                                 </>
                               );
