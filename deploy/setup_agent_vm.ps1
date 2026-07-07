@@ -24,12 +24,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# -- Config ---------------------------------------------------------------------
-$SUBSCRIPTION = "7a42e0f2-3b2f-4b16-8bf2-458746103d58"
-$RG           = "govtest-scale-rg"
-$LOCATION     = "eastus"
+# -- Config (override via .env: AZURE_SUBSCRIPTION_ID / AZURE_RESOURCE_GROUP / AZURE_LOCATION / AZURE_VM_SIZE) --
+. "$PSScriptRoot\_load_env.ps1"
+$cfg = Import-DotEnv
+$SUBSCRIPTION = Get-EnvOr $cfg 'AZURE_SUBSCRIPTION_ID' '7a42e0f2-3b2f-4b16-8bf2-458746103d58'
+$RG           = Get-EnvOr $cfg 'AZURE_RESOURCE_GROUP'  'govtest-scale-rg'
+$LOCATION     = Get-EnvOr $cfg 'AZURE_LOCATION'        'eastus'
 $VM_NAME      = "govtest-agent-vm"
-$VM_SIZE      = "Standard_D8s_v3"      # 8 vCPU / 32 GB - RAM is not the bottleneck
+$VM_SIZE      = Get-EnvOr $cfg 'AZURE_VM_SIZE'         'Standard_D8s_v3'   # 8 vCPU/32GB; drop to D4s_v3 if new sub lacks quota
 $OS_IMAGE     = "Ubuntu2204"
 $OS_DISK_GB   = 200
 

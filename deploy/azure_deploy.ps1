@@ -4,11 +4,13 @@
 
 $ErrorActionPreference = "Stop"
 
-# ── Config ─────────────────────────────────────────────────────────────────────
-$SUBSCRIPTION = "7a42e0f2-3b2f-4b16-8bf2-458746103d58"
-$RG           = "govtest-scale-rg"
-$LOCATION     = "eastus"
-$ACR_NAME     = "govtestscaleacr"   # must be globally unique, lowercase, no hyphens
+# ── Config (override via .env: AZURE_SUBSCRIPTION_ID / AZURE_RESOURCE_GROUP / AZURE_LOCATION / AZURE_ACR_NAME) ──
+. "$PSScriptRoot\_load_env.ps1"
+$cfg = Import-DotEnv
+$SUBSCRIPTION = Get-EnvOr $cfg 'AZURE_SUBSCRIPTION_ID' '7a42e0f2-3b2f-4b16-8bf2-458746103d58'
+$RG           = Get-EnvOr $cfg 'AZURE_RESOURCE_GROUP'  'govtest-scale-rg'
+$LOCATION     = Get-EnvOr $cfg 'AZURE_LOCATION'        'eastus'
+$ACR_NAME     = Get-EnvOr $cfg 'AZURE_ACR_NAME'        'govtestscaleacr'   # must be globally unique, lowercase, no hyphens
 $ACA_ENV      = "govtest-env"
 $JOB_NAME     = "govtest-scale-job"
 $IMAGE_TAG    = "governance-stack:latest"
