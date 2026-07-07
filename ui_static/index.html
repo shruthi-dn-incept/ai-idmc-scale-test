@@ -689,7 +689,7 @@ function CurateResult({ data }) {
           <span className="text-xs text-slate-500 font-medium">{last.progress}</span>
         </div>
         {batches.length > 1 && (
-          <div className="text-xs text-slate-400 mt-1">{batches.length} batches · {totalLinked} linked · {totalSkipped} skipped{unmatched > 0 ? ` · ${unmatched} no match` : ""}</div>
+          <div className="text-xs text-slate-400 mt-1">{totalLinked} linked · {totalSkipped} skipped{unmatched > 0 ? ` · ${unmatched} no match` : ""}</div>
         )}
       </div>
     </div>

@@ -432,8 +432,17 @@ def _browse_all_tables_in_schema(schema_name: str) -> list[dict[str, Any]]:
     hier = details.get("hierarchy") or []
     if isinstance(hier, dict):
         hier = hier.get("children") or hier.get("items") or []
-    result = [h for h in hier
-              if (h.get("systemAttributes") or {}).get("core.classType", "").endswith("Table")]
+
+    def _child_class_type(h: dict[str, Any]) -> str:
+        # Hierarchy children do NOT carry systemAttributes; their classType is the
+        # "~"-suffix of core.externalId (e.g. ".../MY_TABLE~com.infa...relational.Table").
+        # Fall back to systemAttributes for any entries that do include it.
+        eid = h.get("core.externalId") or (h.get("summary") or {}).get("core.externalId") or ""
+        if "~" in eid:
+            return eid.rsplit("~", 1)[-1]
+        return (h.get("systemAttributes") or {}).get("core.classType", "")
+
+    result = [h for h in hier if _child_class_type(h).endswith("Table")]
     _browse_cache[schema_name] = (_t.time(), result)
     log.info("_browse_all_tables_in_schema: %s → %d tables (cached)", schema_name, len(result))
     return result
