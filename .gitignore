@@ -2,6 +2,11 @@
 .env.*
 !.env.example
 
+# Snowflake key-pair credentials (private + public) — never commit
+*.p8
+snowflake_scale_test_rsa_key*
+rsa_key.*
+
 # VS Code MCP config — may contain interpolation refs but we keep it untracked
 # so anyone cloning the repo starts from .vscode/mcp.example.json.
 .vscode/mcp.json

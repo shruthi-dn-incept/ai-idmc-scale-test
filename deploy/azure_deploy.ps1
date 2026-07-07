@@ -44,17 +44,14 @@ Write-Host "  Image pushed." -ForegroundColor Green
 
 # ── 4. Create Container Apps environment ──────────────────────────────────────
 Write-Host "[4/6] Creating Container Apps environment..." -ForegroundColor Yellow
-$envExists = az containerapp env show --name $ACA_ENV --resource-group $RG --query name -o tsv 2>$null
-if (-not $envExists) {
-    az containerapp env create `
-      --name $ACA_ENV `
-      --resource-group $RG `
-      --location $LOCATION `
-      --output none
-    Write-Host "  Created." -ForegroundColor Green
-} else {
-    Write-Host "  Already exists." -ForegroundColor Gray
-}
+$ErrorActionPreference = "Continue"
+az containerapp env create `
+  --name $ACA_ENV `
+  --resource-group $RG `
+  --location $LOCATION `
+  --output none 2>$null
+$ErrorActionPreference = "Stop"
+Write-Host "  Done (created or already existed)." -ForegroundColor Green
 
 # ── 5. Get ACR credentials ────────────────────────────────────────────────────
 Write-Host "[5/6] Fetching ACR credentials..." -ForegroundColor Yellow
@@ -73,7 +70,9 @@ Get-Content ".env.docker" | Where-Object { $_ -match "^\s*[^#].*=.*" } | ForEach
 $REMOTE_IMAGE = "$ACR_SERVER/$IMAGE_TAG"
 
 # Delete existing job if present (to allow clean update)
+$ErrorActionPreference = "Continue"
 $jobExists = az containerapp job show --name $JOB_NAME --resource-group $RG --query name -o tsv 2>$null
+$ErrorActionPreference = "Stop"
 if ($jobExists) {
     Write-Host "  Deleting existing job for fresh deploy..." -ForegroundColor Gray
     az containerapp job delete --name $JOB_NAME --resource-group $RG --yes --output none
@@ -85,6 +84,7 @@ az containerapp job create `
   --environment $ACA_ENV `
   --trigger-type Manual `
   --replica-timeout 7200 `
+  --replica-retry-limit 1 `
   --image $REMOTE_IMAGE `
   --cpu 2 --memory "4Gi" `
   --registry-server $ACR_SERVER `

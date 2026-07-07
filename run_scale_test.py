@@ -32,14 +32,23 @@ RESULTS_FILE = "scale_test_results.csv"
 # ── Snowflake helpers ──────────────────────────────────────────────────────────
 
 def _sf_conn():
-    return snowflake.connector.connect(
+    kwargs = dict(
         account=os.getenv("SNOWFLAKE_ACCOUNT"),
         user=os.getenv("SNOWFLAKE_USER"),
-        password=os.getenv("SNOWFLAKE_PASSWORD"),
         warehouse=os.getenv("SNOWFLAKE_WAREHOUSE", "INCEPT_WH"),
         role=os.getenv("SNOWFLAKE_ROLE", "ACCOUNTADMIN"),
         database=DB,
     )
+    pk_b64 = os.getenv("SNOWFLAKE_PRIVATE_KEY_B64")
+    if pk_b64:
+        import base64
+        from cryptography.hazmat.primitives.serialization import load_pem_private_key
+        pem = base64.b64decode(pk_b64)
+        private_key = load_pem_private_key(pem, password=None)
+        kwargs["private_key"] = private_key
+    else:
+        kwargs["password"] = os.getenv("SNOWFLAKE_PASSWORD")
+    return snowflake.connector.connect(**kwargs)
 
 
 def get_tables(limit: int) -> list[dict]:

@@ -47,9 +47,12 @@ from mcp.server.fastmcp import FastMCP
 # ---------------------------------------------------------------------------
 SCRIPT_DIR  = Path(__file__).resolve().parent
 ENV_PATH    = SCRIPT_DIR / ".env"
-SCAN_CACHE_DIR = SCRIPT_DIR / ".scan_cache"
-SCAN_CACHE_TTL     = int(os.getenv("SCAN_CACHE_TTL_SECONDS", str(3600)))  # 1 hour
-SCAN_THREAD_WORKERS = int(os.getenv("SCAN_THREAD_WORKERS", "10"))  # parallel column fetches
+SCAN_CACHE_DIR = Path(os.getenv("SCAN_CACHE_DIR", str(SCRIPT_DIR / ".scan_cache")))
+SCAN_CACHE_TTL      = int(os.getenv("SCAN_CACHE_TTL_SECONDS", str(3600)))  # 1 hour
+SCAN_THREAD_WORKERS = int(os.getenv("SCAN_THREAD_WORKERS", "20"))  # parallel column fetches
+BROWSE_THRESHOLD    = 500   # only run hierarchy browse for sources with this many keyword hits
+BROWSE_CACHE_TTL    = 1800  # seconds — cache browse results for 30 min
+_browse_cache: dict[str, tuple[float, list]] = {}  # schema_name → (ts, hits)
 
 CDGC_API_BASE = os.getenv("CDGC_API_BASE", "https://cdgc-api.dm-us.informaticacloud.com")
 DEFAULT_ORG_ID = os.getenv("IDMC_ORG_ID")
@@ -262,6 +265,8 @@ def _request_cdgc(method: str, url: str, **kw) -> httpx.Response:
             _jwt_cache["token"] = None
             _jwt_cache["expires_at"] = 0.0
         r = httpx.request(method, url, headers=_cdgc_headers(), **kw)
+    if r.status_code >= 400:
+        log.warning("CDGC %s %s -> %d BODY: %s", method, url.split("?")[0][-60:], r.status_code, r.text[:300])
     return r
 
 
@@ -286,8 +291,12 @@ def _request_v3(method: str, path_or_url: str, **kw) -> httpx.Response:
 # ---------------------------------------------------------------------------
 # LLM helpers — Claude via Anthropic API
 # ---------------------------------------------------------------------------
-def _llm_call(system_prompt: str, user_msg: str, temperature: float = 0.2) -> str:
-    """Call Claude Sonnet. Returns raw text response."""
+_MODEL_FAST   = "claude-haiku-4-5-20251001"   # routing + taxonomy — speed priority
+_MODEL_QUALITY = "claude-sonnet-4-6"           # curate / complex reasoning — quality priority
+
+def _llm_call(system_prompt: str, user_msg: str, temperature: float = 0.2,
+              model: str | None = None) -> str:
+    """Call Claude. model defaults to _MODEL_FAST (Haiku). Returns raw text response."""
     try:
         import anthropic
     except ImportError:
@@ -297,10 +306,11 @@ def _llm_call(system_prompt: str, user_msg: str, temperature: float = 0.2) -> st
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY missing from .env")
 
+    chosen = model or _MODEL_FAST
     client = anthropic.Anthropic(api_key=api_key)
     msg = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=16000,
+        model=chosen,
+        max_tokens=8192,
         temperature=temperature,
         system=system_prompt,
         messages=[{"role": "user", "content": user_msg}],
@@ -324,16 +334,15 @@ def _clean_json_text(text: str) -> str:
     return text
 
 
-def _llm_json(system_prompt: str, user_msg: str) -> Any:
+def _llm_json(system_prompt: str, user_msg: str, model: str | None = None) -> Any:
     """Call LLM and parse the response as JSON. Retries once on parse failure."""
-    raw = _llm_call(system_prompt + "\n\nAlways respond with valid JSON only.", user_msg)
+    raw = _llm_call(system_prompt + "\n\nAlways respond with valid JSON only.", user_msg, model=model)
     text = _clean_json_text(raw)
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        # Second attempt: ask LLM to fix it
         fix_prompt = f"The following is not valid JSON. Return ONLY valid JSON:\n\n{raw}"
-        raw2 = _llm_call("You are a JSON formatter. Return only valid JSON.", fix_prompt)
+        raw2 = _llm_call("You are a JSON formatter. Return only valid JSON.", fix_prompt, model=model)
         text2 = _clean_json_text(raw2)
         return json.loads(text2)
 
@@ -360,7 +369,7 @@ def _cdgc_search_paged(query: str, class_type: str | None = None, max_results: i
     """Search CDGC with pagination, deduplicating by core.identity."""
     all_hits: list[dict[str, Any]] = []
     seen: set[str] = set()
-    page_size = 100
+    page_size = 100  # CDGC enforces max 100 per page
     offset = 0
     url = (f"{CDGC_API_BASE}/data360/search/v1/assets"
            f"?knowledgeQuery={quote(query)}&segments=summary,systemAttributes")
@@ -392,6 +401,42 @@ def _cdgc_get_asset(asset_id: str, segments: str = "summary,systemAttributes,hie
     if r.status_code >= 400:
         return {}
     return r.json() or {}
+
+
+def _browse_all_tables_in_schema(schema_name: str) -> list[dict[str, Any]]:
+    """Return ALL table assets in a named schema via hierarchy browse (not keyword search).
+
+    This bypasses the knowledgeQuery relevance cap and returns the complete set.
+    Results are cached for BROWSE_CACHE_TTL seconds to keep discover fast on re-runs.
+    """
+    import time as _t
+    cached = _browse_cache.get(schema_name)
+    if cached:
+        ts, hits = cached
+        if _t.time() - ts < BROWSE_CACHE_TTL:
+            log.info("_browse_all_tables_in_schema: cache hit for %s (%d hits)", schema_name, len(hits))
+            return hits
+
+    hits = _cdgc_search(schema_name, class_type="Schema", size=10)
+    if not hits:
+        hits = _cdgc_search(schema_name, size=10)
+    if not hits:
+        return []
+    name_upper = schema_name.upper()
+    exact = [h for h in hits if _name_of(h).upper() == name_upper]
+    schema_hit = (exact or hits)[0]
+    schema_id  = _id_of(schema_hit)
+    if not schema_id:
+        return []
+    details = _cdgc_get_asset(schema_id, segments="summary,systemAttributes,hierarchy")
+    hier = details.get("hierarchy") or []
+    if isinstance(hier, dict):
+        hier = hier.get("children") or hier.get("items") or []
+    result = [h for h in hier
+              if (h.get("systemAttributes") or {}).get("core.classType", "").endswith("Table")]
+    _browse_cache[schema_name] = (_t.time(), result)
+    log.info("_browse_all_tables_in_schema: %s → %d tables (cached)", schema_name, len(result))
+    return result
 
 
 def _fetch_column_detail(col_hit: dict[str, Any]) -> dict[str, Any] | None:
@@ -527,21 +572,46 @@ def _cdgc_link_term_to_asset(term_id: str, asset_id: str) -> dict[str, Any]:
 # MCC helpers (Metadata Command Center — CDGC catalog scan API)
 # ---------------------------------------------------------------------------
 def _list_catalog_sources() -> list[dict[str, Any]]:
-    """List catalog source assets (core.Resource) from CDGC via search API."""
-    hits = _cdgc_search("Resource", class_type="core.Resource", size=100)
+    """List catalog source assets from CDGC via search API."""
+    seen: set = set()
     sources = []
-    for h in hits:
-        sa      = h.get("systemAttributes") or {}
-        summary = h.get("summary") or {}
-        ext_id  = (sa.get("core.externalId") or "").split("://")[0]
-        sources.append({
-            "id":          h.get("core.identity") or sa.get("core.identity"),
-            "sourceId":    sa.get("core.origin"),
-            "externalId":  ext_id,
-            "name":        summary.get("core.name"),
-            "type":        sa.get("core.classType"),
-            "updateTime":  sa.get("core.modifiedOn"),
-        })
+
+    # Only keep assets whose class type signals a catalog source / resource.
+    # Mappings, taskflows, tables, schemas, columns, etc. are excluded.
+    _SOURCE_TYPE_KEYWORDS = ("Source", "Resource", "Catalog", "Connector")
+
+    def _add_hits(hits: list) -> None:
+        for h in hits:
+            sa      = h.get("systemAttributes") or {}
+            summary = h.get("summary") or {}
+            cls     = sa.get("core.classType", "")
+            # Skip anything that isn't recognisably a catalog source/resource
+            if cls and not any(k in cls for k in _SOURCE_TYPE_KEYWORDS):
+                continue
+            identity = h.get("core.identity") or sa.get("core.identity") or ""
+            if identity in seen:
+                continue
+            seen.add(identity)
+            full_ext = sa.get("core.externalId") or ""
+            ext_id = full_ext.split("://")[0]
+            conn_from_ext = full_ext.split("://", 1)[1].split("/")[0] if "://" in full_ext else ""
+            sources.append({
+                "id":         identity,
+                "sourceId":   sa.get("core.origin"),
+                "externalId": ext_id,
+                "connection": conn_from_ext,
+                "name":       summary.get("core.name"),
+                "type":       cls,
+                "updateTime": sa.get("core.modifiedOn"),
+            })
+
+    # Broad class-type searches
+    _add_hits(_cdgc_search("Resource",     class_type="core.Resource",    size=100))
+    _add_hits(_cdgc_search("CatalogSource",                               size=100))
+    # Common source name keywords to catch all connector types
+    for kw in ["GOVTEST", "Databricks", "ADLS", "S3", "Snowflake", "IICS",
+               "Informatica", "DQ_", "Azure", "GCP", "Oracle", "Salesforce"]:
+        _add_hits(_cdgc_search(kw, size=50))
     return sources
 
 
@@ -566,6 +636,84 @@ def _get_catalog_source_uuid(system_name: str) -> str | None:
     return ext_id.split("://")[0] if ext_id else None
 
 
+def _list_mcc_catalog_sources() -> list[dict[str, Any]]:
+    """List catalog sources registered in MCC for execution scanning.
+
+    Tries multiple MCC API paths. Returns list of {id, name, type, ...}.
+    Falls back to empty list on failure (caller uses CDGC-search UUID instead).
+    """
+    candidate_urls = [
+        # Correct MCC execution listing endpoint (returns {"catalogSources": [...]}
+        # with the executable source ids that /executable/v1/catalogsource/{id}
+        # expects). The config/observable paths below 404 on current pods and are
+        # kept only as defensive fallbacks.
+        f"{CDGC_API_BASE}/data360/executable/v1/catalogsources",
+        f"{CDGC_API_BASE}/data360/config/v1/catalogsources",
+        f"{CDGC_API_BASE}/data360/observable/v1/catalogsources",
+        f"{CDGC_API_BASE}/data360/config/v1/datasources",
+    ]
+    for url in candidate_urls:
+        try:
+            r = _request_cdgc("GET", url)
+            if r.status_code == 200:
+                data = r.json() or {}
+                items = data if isinstance(data, list) else (
+                    data.get("items") or data.get("catalogSources") or
+                    data.get("dataSources") or data.get("hits") or []
+                )
+                log.info("_list_mcc_catalog_sources: %d sources from %s", len(items), url)
+                return items
+            log.info("_list_mcc_catalog_sources: HTTP %d from %s", r.status_code, url)
+        except Exception as exc:
+            log.info("_list_mcc_catalog_sources: %s error: %s", url, exc)
+    return []
+
+
+def _resolve_mcc_source_id(external_id_uuid: str, source_name: str) -> str:
+    """Resolve the MCC execution catalog source ID.
+
+    Tries:
+    1. MCC observable/config API — list registered sources, match by UUID or name
+    2. Falls back to the external_id UUID prefix (may work if source is registered)
+
+    Returns the best-guess ID string (never raises).
+    """
+    mcc_sources = _list_mcc_catalog_sources()
+    if mcc_sources:
+        # Match by UUID
+        for s in mcc_sources:
+            sid = s.get("id") or s.get("sourceId") or s.get("catalogSourceId") or ""
+            if sid and sid == external_id_uuid:
+                log.info("_resolve_mcc_source_id: matched by UUID %s", sid)
+                return sid
+        # Match by name (case-insensitive substring)
+        name_lc = source_name.lower()
+        for s in mcc_sources:
+            sname = (s.get("name") or s.get("sourceName") or "").lower()
+            sid = s.get("id") or s.get("sourceId") or s.get("catalogSourceId") or ""
+            if name_lc and sid and (name_lc in sname or sname in name_lc):
+                log.info("_resolve_mcc_source_id: matched by name '%s' → id=%s", sname, sid)
+                return sid
+        # Log what we got so we can debug further
+        log.info("_resolve_mcc_source_id: no match for uuid=%s name=%s; sources=%s",
+                 external_id_uuid, source_name,
+                 [{"id": s.get("id"), "name": s.get("name")} for s in mcc_sources[:10]])
+    return external_id_uuid
+
+
+def _get_mcc_source_name(source_id: str, fallback: str = "") -> str:
+    """Return the registered MCC catalog-source *name* for a given executable id.
+
+    Used for display so the UI shows the real catalog source (e.g. GOVTEST_PROVIDER)
+    rather than the scanned table name. Falls back to `fallback` when the id can't
+    be matched (e.g. the listing endpoint is unavailable)."""
+    for s in _list_mcc_catalog_sources():
+        sid = s.get("id") or s.get("sourceId") or s.get("catalogSourceId") or ""
+        if sid and sid == source_id:
+            return s.get("name") or s.get("sourceName") or fallback
+    return fallback
+
+
 def _trigger_mcc_scan(catalog_source_id: str, capabilities: list[str] | None = None) -> dict[str, Any]:
     """Trigger MCC catalog scan.
 
@@ -574,11 +722,14 @@ def _trigger_mcc_scan(catalog_source_id: str, capabilities: list[str] | None = N
       Body: {"capabilityNames": [...]}
     Returns full job response dict (jobId, status, taskGroups, trackingURI).
     """
-    caps = capabilities or ["Data Quality"]
     url = f"{CDGC_API_BASE}/data360/executable/v1/catalogsource/{catalog_source_id}"
-    r = _request_cdgc("POST", url, json={"capabilityNames": caps})
+
+    caps = capabilities or ["Data Quality"]
+    body = {"capabilityNames": caps}
+    r = _request_cdgc("POST", url, json=body)
+    log.info("_trigger_mcc_scan: caps=%s → HTTP %d %s", caps, r.status_code, r.text[:300])
     if r.status_code not in (200, 201, 202):
-        raise RuntimeError(f"MCC scan trigger HTTP {r.status_code}: {r.text[:400]}")
+        raise RuntimeError(f"MCC scan trigger HTTP {r.status_code}: {r.text[:600]}")
     return r.json() or {}
 
 
@@ -633,51 +784,121 @@ def list_catalog_sources(type_filter: str | None = None) -> dict[str, Any]:
 def list_catalog_tables(
     schema_filter: str | None = None,
     max_results: int = 300,
+    group_by_source: bool = False,
 ) -> dict[str, Any]:
-    """List all tables available in the CDGC catalog, grouped by schema.
+    """List all tables available in the CDGC catalog, grouped by schema or catalog source.
 
     Call this first to discover what tables exist before running onboard_and_govern.
 
     Args:
-      schema_filter: Optional substring filter on schema name (case-insensitive).
-      max_results:   Max tables to return across all schemas (default 300).
+      schema_filter:   Optional substring filter on schema name (case-insensitive).
+      max_results:     Max tables to return across all schemas (default 300).
+      group_by_source: If True, group tables by catalog source name instead of schema path.
 
     Returns: {schemas: [{schema, connection, tables: [{name, id, external_id}]}],
               total_tables, catalog_sources}
     """
-    # Collect catalog source names to use as broad search seeds
+    # Collect catalog source names and their UUIDs for filtering
     sources = _list_catalog_sources()
     source_names = [s.get("name", "") for s in sources if s.get("name")]
+    # UUID → source name (from core.externalId prefix before "://")
+    uuid_to_source_name = {s.get("externalId", ""): s.get("name", "") for s in sources if s.get("externalId") and s.get("name")}
+    # Connection name → source name (from the host/connection part after "://")
+    connection_to_source_name = {s.get("connection", ""): s.get("name", "") for s in sources if s.get("connection") and s.get("name")}
+    source_connections = [s.get("connection", "") for s in sources if s.get("connection")]
+    # Internal identity UUID → source name (covers UUID-prefixed externalIds)
+    identity_to_source_name: dict[str, str] = {s.get("id", ""): s.get("name", "") for s in sources if s.get("id") and s.get("name")}
+    # Detect raw UUID strings — never use as display names
+    _uuid_re = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-', re.IGNORECASE)
+    def _readable_id(s: str) -> str | None:
+        return s if s and not _uuid_re.match(s) else None
 
-    # Build search queries: source names + common table/view name patterns
-    queries = list(dict.fromkeys(source_names + ["_", "TABLE", "STAGE", "FACT", "DIM", "VW", "VIEW"]))
+    # Source queries always run to completion; generic queries stop at max_results
+    source_query_set = set(source_names + source_connections)
+    generic_queries  = ["_", "TABLE", "STAGE", "FACT", "DIM", "VW", "VIEW"]
+    source_queries   = list(dict.fromkeys(source_names + source_connections))
+
+    SOURCE_QUERY_LIMIT = 2000
+
+    def _fetch_query_hits(query: str, limit: int) -> list[dict[str, Any]]:
+        return (_cdgc_search_paged(query, class_type="Table", max_results=limit)
+                + _cdgc_search_paged(query, class_type="View",  max_results=limit))
 
     all_tables: dict[str, list[dict[str, Any]]] = {}
     seen_ids: set[str] = set()
 
-    for query in queries:
-        if len(seen_ids) >= max_results:
-            break
-        hits = (_cdgc_search_paged(query, class_type="Table", max_results=max_results)
-                + _cdgc_search_paged(query, class_type="View", max_results=max_results))
+    # Run all source queries in parallel — collects all hits first, then processes
+    workers = min(len(source_queries), SCAN_THREAD_WORKERS)
+    source_hits_ordered: list[list[dict[str, Any]]] = [[] for _ in source_queries]
+    if workers > 0:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = {ex.submit(_fetch_query_hits, q, SOURCE_QUERY_LIMIT): i
+                       for i, q in enumerate(source_queries)}
+            for fut in as_completed(futures):
+                source_hits_ordered[futures[fut]] = fut.result()
+
+    # Build UUID→source_name from actual table hits: when we queried "Databricks" and
+    # got tables whose externalId starts with "266c2b7a-...", that UUID IS the Databricks
+    # source identifier. Map it so group headers show "Databricks" not the UUID.
+    source_name_set = set(source_names)
+    hit_uuid_to_source: dict[str, str] = {}
+    for q, hits in zip(source_queries, source_hits_ordered):
+        if q not in source_name_set:
+            continue  # skip connection-string queries — only use clean source names
         for hit in hits:
-            if len(seen_ids) >= max_results:
-                break
+            sa  = hit.get("systemAttributes") or {}
+            eid = (hit.get("core.externalId") or sa.get("core.externalId") or sa.get("core.origin") or "")
+            u   = eid.split("://")[0] if "://" in eid else ""
+            if u and _uuid_re.match(u):
+                hit_uuid_to_source.setdefault(u, q)  # first source query to claim this UUID wins
+
+    # Seed UUID→source for sources whose schema name = source name (e.g. Snowflake: GOVTEST_MEMBER).
+    # Source query table hits fail for these because table names don't contain the source name.
+    # Browsing the schema by source name gives a sample table whose externalId reveals the UUID.
+    def _seed_uuid_for_source(src_name: str) -> tuple[str, str] | None:
+        for h in _browse_all_tables_in_schema(src_name)[:3]:
+            sa  = h.get("systemAttributes") or {}
+            eid = sa.get("core.externalId") or ""
+            u   = eid.split("://")[0] if "://" in eid else ""
+            if u and _uuid_re.match(u):
+                return (u, src_name)
+        return None
+
+    seed_workers = min(len(source_names), SCAN_THREAD_WORKERS)
+    if seed_workers > 0:
+        with ThreadPoolExecutor(max_workers=seed_workers) as ex:
+            for pair in ex.map(_seed_uuid_for_source, source_names):
+                if pair:
+                    u, sname = pair
+                    hit_uuid_to_source.setdefault(u, sname)
+    log.info("hit_uuid_to_source seeded: %d entries for %d sources", len(hit_uuid_to_source), len(source_names))
+
+    for hits in source_hits_ordered:
+        for hit in hits:
             tid = _id_of(hit)
             if not tid or tid in seen_ids:
                 continue
-            seen_ids.add(tid)
 
             sa     = hit.get("systemAttributes") or {}
             ext_id = (hit.get("core.externalId")
                       or sa.get("core.externalId")
                       or sa.get("core.origin") or "")
+
+            asset_uuid = (ext_id.split("://")[0] if "://" in ext_id else "") if ext_id else ""
+
+            seen_ids.add(tid)
+
             schema     = ""
+            database   = ""
             connection = ""
             if ext_id and "://" in ext_id:
                 path_part = ext_id.split("://", 1)[1].split("~")[0]
                 parts = path_part.split("/")
-                if len(parts) >= 3:
+                if len(parts) >= 4:
+                    connection = parts[0]
+                    database   = parts[1]
+                    schema     = parts[-2]
+                elif len(parts) >= 3:
                     schema     = parts[-2]
                     connection = parts[0]
                 elif len(parts) == 2:
@@ -686,17 +907,161 @@ def list_catalog_tables(
             if schema_filter and schema_filter.lower() not in schema.lower():
                 continue
 
-            key = f"{connection}/{schema}" if connection else schema or "(unknown)"
+            if group_by_source:
+                cat_name = (uuid_to_source_name.get(asset_uuid)
+                            or connection_to_source_name.get(connection)
+                            or identity_to_source_name.get(asset_uuid)
+                            or hit_uuid_to_source.get(asset_uuid)
+                            or _readable_id(asset_uuid)
+                            or schema
+                            or "(unknown)")
+                key = (cat_name, database or "", schema or "(no schema)")
+            else:
+                key = f"{connection}/{schema}" if connection else schema or "(unknown)"
             all_tables.setdefault(key, []).append({
                 "name":        _name_of(hit),
                 "id":          tid,
                 "external_id": ext_id,
             })
 
+    # Generic catch-all queries run sequentially, capped at max_results total
+    for gq in generic_queries:
+        if gq in source_query_set:
+            continue
+        if len(seen_ids) >= max_results:
+            break
+        for hit in _fetch_query_hits(gq, max_results):
+            if len(seen_ids) >= max_results:
+                break
+            tid = _id_of(hit)
+            if not tid or tid in seen_ids:
+                continue
+            sa     = hit.get("systemAttributes") or {}
+            ext_id = (hit.get("core.externalId") or sa.get("core.externalId") or sa.get("core.origin") or "")
+            asset_uuid = (ext_id.split("://")[0] if "://" in ext_id else "") if ext_id else ""
+            seen_ids.add(tid)
+            schema = database = connection = ""
+            if ext_id and "://" in ext_id:
+                parts = ext_id.split("://", 1)[1].split("~")[0].split("/")
+                if len(parts) >= 4:
+                    connection, database, schema = parts[0], parts[1], parts[-2]
+                elif len(parts) >= 3:
+                    schema, connection = parts[-2], parts[0]
+                elif len(parts) == 2:
+                    schema = parts[0]
+            if schema_filter and schema_filter.lower() not in schema.lower():
+                continue
+            if group_by_source:
+                cat_name = (uuid_to_source_name.get(asset_uuid) or connection_to_source_name.get(connection) or identity_to_source_name.get(asset_uuid) or hit_uuid_to_source.get(asset_uuid) or _readable_id(asset_uuid) or schema or "(unknown)")
+                key = (cat_name, database or "", schema or "(no schema)")
+            else:
+                key = f"{connection}/{schema}" if connection else schema or "(unknown)"
+            all_tables.setdefault(key, []).append({"name": _name_of(hit), "id": tid, "external_id": ext_id})
+
+    # ── Schema hierarchy browse: get ALL tables, bypassing knowledgeQuery relevance cap ──
+    # Only browse sources that already have BROWSE_THRESHOLD+ tables from keyword search —
+    # small sources (accuweather: 24, bakehouse: 12, etc.) are already complete and don't need it.
+    tables_per_source: dict[str, int] = {}
+    for key_t, tbls_t in all_tables.items():
+        src_t = key_t[0] if isinstance(key_t, tuple) else key_t.split("/")[0]
+        tables_per_source[src_t] = tables_per_source.get(src_t, 0) + len(tbls_t)
+    # Use all distinct source names from discovered tables (not just _list_catalog_sources)
+    all_source_names = list(tables_per_source.keys())
+    browse_names = [n for n in all_source_names if n and tables_per_source.get(n, 0) >= BROWSE_THRESHOLD]
+    log.info("browse supplement: %d of %d sources qualify (>=%d tables)",
+             len(browse_names), len(source_names), BROWSE_THRESHOLD)
+    if browse_names:
+        def _process_browse_hit(hit: dict[str, Any], src_name: str) -> tuple[Any, dict] | None:
+            tid = _id_of(hit)
+            if not tid or tid in seen_ids:
+                return None
+            sa     = hit.get("systemAttributes") or {}
+            ext_id = (hit.get("core.externalId") or sa.get("core.externalId") or sa.get("core.origin") or "")
+            asset_uuid = (ext_id.split("://")[0] if "://" in ext_id else "") if ext_id else ""
+            schema_     = ""
+            database_   = ""
+            connection_ = ""
+            if ext_id and "://" in ext_id:
+                parts = ext_id.split("://", 1)[1].split("~")[0].split("/")
+                if len(parts) >= 4:
+                    connection_, database_, schema_ = parts[0], parts[1], parts[-2]
+                elif len(parts) >= 3:
+                    schema_     = parts[-2]
+                    connection_ = parts[0]
+                elif len(parts) == 2:
+                    schema_     = parts[0]
+            if schema_filter and schema_filter.lower() not in schema_.lower():
+                return None
+            if group_by_source:
+                cat_name = (uuid_to_source_name.get(asset_uuid)
+                            or connection_to_source_name.get(connection_)
+                            or identity_to_source_name.get(asset_uuid)
+                            or hit_uuid_to_source.get(asset_uuid)
+                            or src_name
+                            or _readable_id(asset_uuid)
+                            or schema_ or "(unknown)")
+                key = (cat_name, database_ or "", schema_ or "(no schema)")
+            else:
+                key = f"{connection_}/{schema_}" if connection_ else schema_ or "(unknown)"
+            return (tid, key, {"name": _name_of(hit), "id": tid, "external_id": ext_id})
+
+        def _browse_one_source(src_name: str) -> list[tuple[Any, dict]]:
+            hits = _browse_all_tables_in_schema(src_name)
+            out  = []
+            for h in hits:
+                r = _process_browse_hit(h, src_name)
+                if r:
+                    out.append(r)
+            return out
+
+        browse_workers = min(len(browse_names), SCAN_THREAD_WORKERS)
+        with ThreadPoolExecutor(max_workers=browse_workers) as ex:
+            browse_futures = {ex.submit(_browse_one_source, n): n for n in browse_names}
+            for fut in as_completed(browse_futures):
+                for tid, key, row in fut.result():
+                    if tid not in seen_ids:   # double-check after parallel writes
+                        seen_ids.add(tid)
+                        all_tables.setdefault(key, []).append(row)
+        log.info("browse supplement: seen_ids now %d", len(seen_ids))
+
+    if group_by_source:
+        # Build nested: catalog source → database → schema → tables
+        nested: dict[str, dict[str, dict[str, list]]] = {}
+        for (cat_name, db_name, schema_name), tbls in all_tables.items():
+            nested.setdefault(cat_name, {}).setdefault(db_name, {}).setdefault(schema_name, []).extend(tbls)
+
+        catalog_sources_out = []
+        for cat_name, db_dict in sorted(nested.items()):
+            databases_out: list[dict] = []
+            schemas_flat:  list[dict] = []  # flat list for backward-compat (scan dropdowns)
+            total = 0
+            for db_name, schema_dict in sorted(db_dict.items()):
+                schemas_in_db = [
+                    {
+                        "schema": schema_name,
+                        "tables": sorted(tbls, key=lambda x: x["name"]),
+                    }
+                    for schema_name, tbls in sorted(schema_dict.items())
+                ]
+                databases_out.append({"database": db_name, "schemas": schemas_in_db})
+                schemas_flat.extend(schemas_in_db)
+                total += sum(len(s["tables"]) for s in schemas_in_db)
+            catalog_sources_out.append({
+                "source":      cat_name,
+                "databases":   databases_out,
+                "schemas":     schemas_flat,   # flat — used by scan dropdowns
+                "total_tables": total,
+            })
+        return {
+            "catalog_sources_grouped": catalog_sources_out,
+            "total_tables":            sum(s["total_tables"] for s in catalog_sources_out),
+            "catalog_source_names":    source_names,
+        }
+
     schemas_out = [
         {
             "schema":     key.split("/", 1)[-1] if "/" in key else key,
-            "connection": key.split("/", 1)[0]  if "/" in key else "",
+            "connection": key.split("/", 1)[0] if "/" in key else "",
             "tables":     sorted(tbls, key=lambda x: x["name"]),
         }
         for key, tbls in sorted(all_tables.items())
@@ -734,7 +1099,8 @@ def scan_find_tables(
     found: list[dict[str, Any]] = []
     missing: list[str] = []
 
-    for tname in table_names:
+    def _lookup_one(tname: str) -> dict[str, Any] | None:
+        """Resolve one table name to its CDGC asset. Returns None if not found."""
         query = f"{schema_hint}.{tname}" if schema_hint else tname
         hits  = _cdgc_search(query, class_type="Table", size=5)
         if not hits:
@@ -744,41 +1110,73 @@ def scan_find_tables(
         if not hits:
             hits = _cdgc_search(tname, class_type="View", size=5)
         if not hits:
-            missing.append(tname)
-            continue
+            return None
 
-        name_lc = tname.lower()
-        exact   = [h for h in hits if _name_of(h).lower() == name_lc]
-        hit     = (exact or hits)[0]
-        tid     = _id_of(hit)
-
+        name_lc    = tname.lower()
+        exact      = [h for h in hits if _name_of(h).lower() == name_lc]
+        candidates = exact or hits
+        # Prefer candidate whose externalId contains schema_hint to avoid picking a
+        # same-named table from a different schema.
+        if schema_hint and len(candidates) > 1:
+            sh_up = schema_hint.upper()
+            schema_matched = [
+                h for h in candidates
+                if sh_up in (
+                    h.get("core.externalId")
+                    or (h.get("systemAttributes") or {}).get("core.externalId")
+                    or ""
+                ).upper()
+            ]
+            if schema_matched:
+                candidates = schema_matched
+        hit    = candidates[0]
+        tid    = _id_of(hit)
         ext_id = (hit.get("core.externalId")
                   or (hit.get("systemAttributes") or {}).get("core.externalId")
                   or "")
-        schema     = ""
+        schema_    = ""
         connection = ""
         if ext_id and "://" in ext_id:
-            path_part = ext_id.split("://", 1)[1].split("~")[0]
-            parts = path_part.split("/")
+            parts = ext_id.split("://", 1)[1].split("~")[0].split("/")
             if len(parts) >= 3:
-                schema     = parts[-2]
+                schema_    = parts[-2]
                 connection = parts[0]
-
-        found.append({
+        log.info("scan_find_tables: found %s (id=%s)", tname, (tid or "?")[:12])
+        return {
             "name":        _name_of(hit) or tname,
             "internal_id": tid,
             "external_id": ext_id,
-            "schema":      schema,
+            "schema":      schema_,
             "connection":  connection,
-        })
-        log.info("scan_find_tables: found %s (id=%s)", tname, (tid or "?")[:12])
+        }
+
+    # Run all table lookups in parallel — each is an independent CDGC search
+    workers = min(len(table_names), SCAN_THREAD_WORKERS)
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            lookup_results = list(ex.map(_lookup_one, table_names))
+    else:
+        lookup_results = [_lookup_one(t) for t in table_names]
+
+    for tname, result in zip(table_names, lookup_results):
+        if result:
+            found.append(result)
+        else:
+            missing.append(tname)
 
     # Persist stubs so scan_fetch_columns + govern("taxonomy") can reconstruct full state.
     # Only overwrite scan_pending if we actually found tables — never wipe valid prior state
     # with an empty result (avoids erasing a successful scan when govern re-dispatches scan).
     state = _load_govern_state()
     if found:
+        found_names = [t["name"] for t in found]
+        # State is sharded per table: scanning a different table loads that table's own
+        # slot (resuming its prior progress if any) instead of carrying this table's
+        # downstream state across. Re-scanning the same table keeps its slot intact.
+        if _table_key(found_names) != _table_key(state.get("table_names")):
+            state = _load_govern_state(key=_table_key(found_names))
         state["scan_pending"] = {"tables": found, "schema_hint": schema_hint}
+        state["table_names"]  = found_names
         _save_govern_state(state)
 
     return {
@@ -996,9 +1394,10 @@ def scan_mcc_source(
 # ---------------------------------------------------------------------------
 @mcp.tool()
 def generate_governance_taxonomy(
-    table_metadata: list[dict[str, Any]],
+    table_metadata: list[dict[str, Any]] | None = None,
     domain_hint: str | None = None,
     organization_context: str | None = None,
+    table_names: list[str] | None = None,
 ) -> dict[str, Any]:
     """Use Claude AI to generate a domain/subdomain/business-term taxonomy.
 
@@ -1007,8 +1406,9 @@ def generate_governance_taxonomy(
     business terms with definitions and column-mappings.
 
     Args:
-      table_metadata:       Output from scan_mcc_source (list of table dicts
-                            with 'name' and 'columns' keys).
+      table_metadata:       List of table dicts with 'name' and 'columns' keys.
+                            If omitted, pass table_names and columns are loaded from cache.
+      table_names:          Alternative to table_metadata — load column data from scan cache.
       domain_hint:          Optional top-level domain name (e.g. "Finance",
                             "Supply Chain"). LLM infers one if absent.
       organization_context: Optional 1-2 sentence business context to help the
@@ -1017,6 +1417,37 @@ def generate_governance_taxonomy(
     Returns: {domains:[{name, description, subdomains:[{name, description,
               business_terms:[{name, definition, synonyms, columns:[...]}]}]}]}
     """
+    # Resolve table_metadata from cache if only names provided
+    if not table_metadata and table_names:
+        SCAN_CACHE_DIR.mkdir(exist_ok=True)
+        table_metadata = []
+        for tname in table_names:
+            cache_key  = re.sub(r"[^\w]", "_", tname.upper())
+            cache_file = SCAN_CACHE_DIR / f"{cache_key}.json"
+            if cache_file.exists():
+                table_metadata.append(json.loads(cache_file.read_text()))
+            else:
+                table_metadata.append({"name": tname, "columns": []})
+
+    if not table_metadata:
+        # Fall back to session state scan_pending
+        state   = _load_govern_state()
+        pending = state.get("scan_pending", {})
+        scan    = _reconstruct_scan_from_cache(pending)
+        table_metadata = scan.get("tables", []) if scan else []
+
+    if not table_metadata and SCAN_CACHE_DIR.exists():
+        # Last resort: load ALL cached table files from disk
+        table_metadata = [
+            json.loads(f.read_text())
+            for f in sorted(SCAN_CACHE_DIR.glob("*.json"))
+            if f.is_file()
+        ]
+
+    log.info("generate_governance_taxonomy: %d tables loaded for LLM", len(table_metadata or []))
+    MAX_TABLES      = 30   # cap tables — too many causes LLM response truncation
+    MAX_COLS_PER_TABLE = 15  # fewer cols per table to stay well within token budget
+    table_metadata = (table_metadata or [])[:MAX_TABLES]
     tables_summary = []
     for t in table_metadata:
         col_names = [
@@ -1024,8 +1455,8 @@ def generate_governance_taxonomy(
             for c in (t.get("columns") or [])
         ]
         tables_summary.append({
-            "table": t["name"],
-            "columns": col_names,
+            "table":   t["name"],
+            "columns": col_names[:MAX_COLS_PER_TABLE],
         })
 
     system_prompt = """You are a senior data governance architect.
@@ -1067,7 +1498,16 @@ glossary taxonomy in JSON. Rules:
     if organization_context:
         user_msg_parts.append(f"\nOrganization context: {organization_context}")
 
-    result = _llm_json(system_prompt, "\n".join(user_msg_parts))
+    try:
+        result = _llm_json(system_prompt, "\n".join(user_msg_parts))
+    except Exception as e:
+        log.warning("generate_governance_taxonomy: LLM JSON parse failed (%s) — retrying with fewer tables", e)
+        # Retry with half the tables to avoid response truncation
+        half = max(1, len(tables_summary) // 2)
+        reduced_msg = f"Tables to analyze:\n{json.dumps(tables_summary[:half], indent=2)}"
+        if domain_hint:
+            reduced_msg += f"\nTop-level domain: {domain_hint}"
+        result = _llm_json(system_prompt, reduced_msg)
 
     # Normalize to expected shape
     if "domains" not in result and isinstance(result, list):
@@ -1083,6 +1523,10 @@ glossary taxonomy in JSON. Rules:
         "subdomain_count": sum(len(d.get("subdomains", [])) for d in result.get("domains", [])),
         "term_count":     total_terms,
     }
+    # Persist to govern state so downstream steps (domain_structure, curate) can read it
+    state = _load_govern_state()
+    state["taxonomy"] = result
+    _save_govern_state(state)
     return result
 
 
@@ -1426,7 +1870,10 @@ def create_system_and_dataset(
                             for v in (item.get("validations") or [])
                             for r in (v.get("results") or [])
                         }
-                        if code in (200, 201) or "RELATIONSHIP_ALREADY_EXISTS" in (msg, *nested_codes):
+                        # INVALID_RELATIONSHIP_CLASS_TYPE = raw catalog column not yet curated;
+                        # will link automatically after curate step — treat as skipped, not error.
+                        _skip_codes = {"RELATIONSHIP_ALREADY_EXISTS", "INVALID_RELATIONSHIP_CLASS_TYPE"}
+                        if code in (200, 201) or _skip_codes & (set([msg]) | nested_codes):
                             linked.append(tid)
                         else:
                             errors.append({"table_id": tid, "error": str(item)})
@@ -1503,7 +1950,7 @@ Include ONLY columns you can match with confidence >= 0.6. Skip unmatched column
             f"Available business terms:\n{json.dumps(term_names)}\n\n"
             f"Columns to match:\n{json.dumps([{'table': c['table'], 'column': c['column'], 'type': c['data_type']} for c in batch])}"
         )
-        batch_result = _llm_json(system_prompt, user_msg)
+        batch_result = _llm_json(system_prompt, user_msg, model=_MODEL_QUALITY)
         if isinstance(batch_result, dict) and "matches" in batch_result:
             batch_result = batch_result["matches"]
         if isinstance(batch_result, list):
@@ -1594,6 +2041,15 @@ def curate_batch(
     state  = _load_govern_state()
     tables = (state.get("scan") or {}).get("tables", [])
     if not tables:
+        pending = state.get("scan_pending") or {}
+        if pending:
+            reconstructed = _reconstruct_scan_from_cache(pending)
+            if reconstructed:
+                tables = reconstructed["tables"]
+                state["scan"] = reconstructed
+                _save_govern_state(state)
+                log.info("curate_batch: reconstructed scan state from cache (%d tables)", len(tables))
+    if not tables:
         return {"error": "No scan result in state. Run scan first."}
 
     domain_result = state.get("domain_structure")
@@ -1652,7 +2108,7 @@ def curate_batch(
         f"{json.dumps([{'table': c['table'], 'column': c['column'], 'type': c['data_type']} for c in batch])}"
     )
 
-    matches_raw = _llm_json(system_prompt, user_msg)
+    matches_raw = _llm_json(system_prompt, user_msg, model=_MODEL_QUALITY)
     if isinstance(matches_raw, dict) and "matches" in matches_raw:
         matches_raw = matches_raw["matches"]
     if not isinstance(matches_raw, list):
@@ -1665,6 +2121,8 @@ def curate_batch(
     skipped = 0
     errors: list[dict[str, Any]] = []
 
+    matched_cols: set[tuple[str, str]] = set()
+
     for m in matches_raw:
         tname      = m.get("term_name", "")
         table_up   = m.get("table", "").upper()
@@ -1676,6 +2134,7 @@ def curate_batch(
             skipped += 1
             continue
 
+        matched_cols.add((table_up, col_up))
         term_id = term_entry["id"]
         col_id  = col_entry["column_id"]
 
@@ -1688,6 +2147,12 @@ def curate_batch(
             except Exception as e:
                 errors.append({"term": tname, "column": f"{table_up}.{col_up}", "error": str(e)})
                 skipped += 1
+
+    # Columns the LLM returned no match for at all
+    skipped += sum(
+        1 for c in batch
+        if (c["table"].upper(), c["column"].upper()) not in matched_cols
+    )
 
     # Accumulate progress in state
     prog = state.get("curate_progress") or {"linked": 0, "skipped": 0, "batches_done": []}
@@ -1708,15 +2173,16 @@ def curate_batch(
     _save_govern_state(state)
 
     return {
-        "batch_index":         batch_index,
-        "columns_processed":   f"{start + 1}–{end} of {total}",
-        "linked":              linked,
-        "skipped":             skipped,
-        "errors":              errors,
-        "total_linked_so_far": prog["linked"],
-        "progress":            f"{end}/{total} columns ({round(end / total * 100)}%)",
-        "batches_remaining":   batch_count - len(prog["batches_done"]),
-        "done":                all_done,
+        "batch_index":          batch_index,
+        "columns_processed":    f"{start + 1}–{end} of {total}",
+        "linked":               linked,
+        "skipped":              skipped,
+        "errors":               errors,
+        "total_linked_so_far":  prog["linked"],
+        "total_skipped_so_far": prog["skipped"],
+        "progress":             f"{end}/{total} columns ({round(end / total * 100)}%)",
+        "batches_remaining":    batch_count - len(prog["batches_done"]),
+        "done":                 all_done,
     }
 
 
@@ -1776,13 +2242,22 @@ def run_mcc_scan(
 
     if not trigger_id:
         sources = _list_catalog_sources()
+        mcc_sources = _list_mcc_catalog_sources()
         return {
             "error": "Could not resolve catalog source.",
             "available_sources": [
                 {"externalId": s.get("externalId"), "id": s.get("id"), "name": s.get("name")}
                 for s in sources[:20]
             ],
+            "mcc_registered_sources": [
+                {"id": s.get("id") or s.get("sourceId"), "name": s.get("name") or s.get("sourceName")}
+                for s in mcc_sources[:20]
+            ],
         }
+
+    # Resolve the actual MCC execution ID (may differ from CDGC metadata UUID)
+    trigger_id = _resolve_mcc_source_id(trigger_id, source_label)
+    log.info("run_mcc_scan: final trigger_id=%s", trigger_id)
 
     try:
         job_resp = _trigger_mcc_scan(trigger_id, capabilities)
@@ -1843,8 +2318,9 @@ def set_dq_occurrences(
         for o in (occurrences or [])
         if o.get("internal_id") or o.get("occurrence_id")
     ]
-    dq["occurrences"] = stored
-    state["dq_rules"] = dq
+    dq["occurrences"]     = stored
+    dq["occurrence_count"] = len(stored)
+    state["dq_rules"]     = dq
     _save_govern_state(state)
     return {"saved_count": len(stored), "table": dq.get("table", "")}
 
@@ -2141,17 +2617,74 @@ def onboard_and_govern(
 # ---------------------------------------------------------------------------
 _GOVERN_STATE_FILE = SCAN_CACHE_DIR / "govern_state.json"
 
-def _load_govern_state() -> dict[str, Any]:
-    if _GOVERN_STATE_FILE.exists():
-        try:
-            return json.loads(_GOVERN_STATE_FILE.read_text())
-        except Exception:
-            pass
-    return {}
+# Keys that are global to the CDGC catalog, not scoped to a single table. Everything
+# else in the govern state (scan_pending, scan, taxonomy, dq_rules, occurrences, …) is
+# per-table and lives under container["tables"][<key>].
+_GOVERN_SHARED_KEYS = ("catalog",)
+
+
+def _table_key(table_names: Any) -> str:
+    """Stable per-table state key derived from the scanned table name(s).
+
+    Returns "" when no table is in context yet (e.g. before the first scan), which
+    maps to a default slot that only ever holds shared keys.
+    """
+    if not table_names:
+        return ""
+    if isinstance(table_names, str):
+        table_names = [table_names]
+    return "|".join(sorted(str(n).lower() for n in table_names if n))
+
+
+def _load_container() -> dict[str, Any]:
+    """Load the raw sharded container, migrating the legacy flat format if needed."""
+    if not _GOVERN_STATE_FILE.exists():
+        return {"tables": {}, "_active": ""}
+    try:
+        data = json.loads(_GOVERN_STATE_FILE.read_text())
+    except Exception:
+        return {"tables": {}, "_active": ""}
+    if isinstance(data, dict) and "tables" in data and "_active" in data:
+        return data
+    # Legacy flat state {catalog, scan_pending, taxonomy, dq_rules, …} → wrap into a slot.
+    data = data if isinstance(data, dict) else {}
+    shared = {k: data.pop(k) for k in _GOVERN_SHARED_KEYS if k in data}
+    key = _table_key(data.get("table_names"))
+    container: dict[str, Any] = {"tables": {key: data} if data else {}, "_active": key}
+    container.update(shared)
+    return container
+
+
+def _write_container(container: dict[str, Any]) -> None:
+    SCAN_CACHE_DIR.mkdir(exist_ok=True)
+    _GOVERN_STATE_FILE.write_text(json.dumps(container, indent=2))
+
+
+def _load_govern_state(key: str | None = None) -> dict[str, Any]:
+    """Return the flat state for one table (the active table unless `key` is given),
+    merged with shared catalog keys. Callers see the same flat dict as before."""
+    container = _load_container()
+    active = key if key is not None else container.get("_active", "")
+    merged: dict[str, Any] = dict(container.get("tables", {}).get(active, {}))
+    for k in _GOVERN_SHARED_KEYS:
+        if k in container:
+            merged[k] = container[k]
+    return merged
+
 
 def _save_govern_state(state: dict[str, Any]) -> None:
-    SCAN_CACHE_DIR.mkdir(exist_ok=True)
-    _GOVERN_STATE_FILE.write_text(json.dumps(state, indent=2))
+    """Persist a flat state dict into its table's slot. The slot key is derived from
+    state['table_names']; shared keys are split back out to the container root so a
+    write for one table never clobbers another table's pipeline progress."""
+    container = _load_container()
+    for k in _GOVERN_SHARED_KEYS:
+        if k in state:
+            container[k] = state[k]
+    per_table = {k: v for k, v in state.items() if k not in _GOVERN_SHARED_KEYS}
+    key = _table_key(per_table.get("table_names")) or container.get("_active", "")
+    container.setdefault("tables", {})[key] = per_table
+    container["_active"] = key
+    _write_container(container)
 
 
 # ---------------------------------------------------------------------------
@@ -2220,7 +2753,7 @@ _PIPELINE_STEPS = [
         "description": "Trigger the MCC catalog scan with Data Quality capability. "
                        "Runs CDQ rule specs against live Snowflake data (5000 rows) and "
                        "overwrites the interim scores with real values in CDGC automatically. "
-                       "No parameters needed — catalog source is always CDGC-SNOWFLAKE-TERDEV.",
+                       "Catalog source is resolved dynamically from CDGC at runtime.",
         "requires":    ["propagate_scores_result"],
         "next":        "create_cdmp_category",
     },
@@ -2667,12 +3200,22 @@ def govern(
         # Derive system name from the catalog connection embedded in the scan's external_id
         # Format: origin://CONNECTION/SCHEMA/TABLE~classType
         scan_tables   = (state.get("scan") or {}).get("tables", [])
+        # Fallback: reconstruct from scan_pending cache (same pattern as curate/mcc_scan)
+        if not scan_tables:
+            pending = state.get("scan_pending") or {}
+            if pending:
+                reconstructed = _reconstruct_scan_from_cache(pending)
+                if reconstructed:
+                    scan_tables = reconstructed["tables"]
+                    state["scan"] = reconstructed
+                    _save_govern_state(state)
+                    log.info("system_dataset: reconstructed scan state from cache (%d tables)", len(scan_tables))
         connection_name = ""
         schema_name     = ""
         if scan_tables:
             ext_id = scan_tables[0].get("external_id", "")
             after_origin = ext_id.split("://", 1)[-1] if "://" in ext_id else ""
-            parts = after_origin.split("/")
+            parts = [p for p in after_origin.split("~")[0].split("/") if p]
             connection_name = parts[0] if parts else ""
             schema_name     = parts[1] if len(parts) > 1 else ""
         # Prefer scan-derived connection name over LLM-resolved — the LLM often hallucinates
@@ -2681,6 +3224,8 @@ def govern(
         # Always derive dataset name from the scanned table — never from the LLM (it hallucinates).
         # One dataset per governed table; schema name is the fallback only when table_names is empty.
         dataset_name  = (table_names[0] if table_names else schema_name) or (domain_hint + " Dataset" if domain_hint else "Dataset")
+        log.info("system_dataset: system_name=%s dataset_name=%s scan_tables=%d",
+                 system_name, dataset_name, len(scan_tables))
         # asscDataSetDataElement requires column-level IDs — table IDs are rejected.
         scan_table_ids = [
             col["internal_id"]
@@ -2688,6 +3233,7 @@ def govern(
             for col in t.get("columns", [])
             if col.get("internal_id")
         ]
+        log.info("system_dataset: linking %d column IDs", len(scan_table_ids))
         result = create_system_and_dataset(
             system_name,
             dataset_name,
@@ -2700,6 +3246,16 @@ def govern(
 
     elif step == "curate":
         tables = (state.get("scan") or {}).get("tables", [])
+        if not tables:
+            # Fallback: reconstruct from scan_pending cache (same as taxonomy step)
+            pending = state.get("scan_pending") or {}
+            if pending:
+                reconstructed = _reconstruct_scan_from_cache(pending)
+                if reconstructed:
+                    tables = reconstructed["tables"]
+                    state["scan"] = reconstructed
+                    _save_govern_state(state)
+                    log.info("curate: reconstructed scan state from cache (%d tables)", len(tables))
         if not tables:
             return {
                 "step":      step,
@@ -2734,6 +3290,11 @@ def govern(
     elif step == "dq_rules":
         tables = (state.get("scan") or {}).get("tables", [])
         if not tables:
+            # scan bypass sets scan_pending, not scan — reconstruct from disk cache
+            pending = state.get("scan_pending", {})
+            scan_from_cache = _reconstruct_scan_from_cache(pending)
+            tables = scan_from_cache.get("tables", []) if scan_from_cache else []
+        if not tables:
             return {"step": step, "reasoning": reasoning, "error": "No scan result. Run scan first."}
 
         table       = tables[0]
@@ -2741,7 +3302,9 @@ def govern(
         external_id = table.get("external_id", "")
         catalog_origin = external_id.split("://", 1)[0] if "://" in external_id else ""
 
-        # Build full column list from scan cache
+        # Build full column list from scan cache.
+        # Exclude columns with unknown data_type — CDQ rule profiling fails when
+        # rule occurrences exist on columns without proper CDGC data type metadata.
         all_columns = [
             {
                 "column_name": col["name"],
@@ -2763,6 +3326,23 @@ def govern(
             f"{skipped} lower-priority column(s) skipped to keep rule count demo-friendly."
         )
 
+        # Derive source_table_path from external_id so CDQ executor uses the
+        # correct Snowflake database/schema/table (e.g. GOVERNANCE_SCALE_TEST/GOVTEST_MEMBER/TABLE)
+        # rather than falling back to the generic IDMC_DQ_SCHEMA_PATH env var.
+        source_table_path = ""
+        if "://" in external_id:
+            path_part = external_id.split("://", 1)[1].split("~")[0]  # DB/SCHEMA/TABLE
+            source_table_path = path_part
+        log.info("dq_rules: source_table_path=%s", source_table_path)
+
+        dq_params: dict[str, Any] = {
+            "table_name":        table_name,
+            "column_ids":        column_ids,
+            "catalog_origin":    catalog_origin,
+        }
+        if source_table_path:
+            dq_params["source_table_path"] = source_table_path
+
         result = {
             "status":           "ready_to_create_dq_rules",
             "table":            table_name,
@@ -2770,13 +3350,10 @@ def govern(
             "selected_columns": len(column_ids),
             "selection_note":   selection_note,
             "catalog_origin":   catalog_origin,
+            "source_table_path": source_table_path,
             "next_actions":     [{
                 "tool": "create_generic_dq_rules",
-                "params": {
-                    "table_name":     table_name,
-                    "column_ids":     column_ids,
-                    "catalog_origin": catalog_origin,
-                },
+                "params": dq_params,
             }],
             "next_step_instruction": (
                 f"1. Call create_generic_dq_rules with the params above. "
@@ -2786,7 +3363,10 @@ def govern(
                 f"'occurrences_registered' list from the result so scores can be propagated in step 8."
             ),
         }
+        # Merge (don't replace) so a re-plan of this step never drops occurrences that
+        # set_dq_occurrences already stored for this table.
         state["dq_rules"] = {
+            **(state.get("dq_rules") or {}),
             "table":          table_name,
             "column_count":   len(column_ids),
             "column_ids":     column_ids,
@@ -2841,25 +3421,86 @@ def govern(
         state["propagate_scores"] = {"table": table_name, "dimensions": dims}
 
     elif step == "mcc_scan":
-        catalog_source_id = "c46c0515-d520-37a1-a76c-325cb5cfe6ae"
+        # Priority 1: use catalog_origin from DQ rules/scores state — the exact source
+        # on which DQ scores were computed, so we scan only that catalog.
+        ext_uuid = ""
+        catalog_source_name = ""
+        dq_result = state.get("dq_rules") or {}
+        dq_origin = (
+            dq_result.get("catalog_origin")
+            or (dq_result.get("rules") or {}).get("catalog_origin")
+            or ""
+        )
+        if dq_origin:
+            ext_uuid = dq_origin
+            catalog_source_name = dq_result.get("table") or dq_result.get("source_name") or "DQ source"
+            log.info("mcc_scan: using catalog_origin from dq_rules state: %s", ext_uuid)
+
+        # Priority 2: extract UUID from scanned table's external_id
+        if not ext_uuid:
+            scan_tables = (state.get("scan") or {}).get("tables", [])
+            if not scan_tables:
+                pending = state.get("scan_pending") or {}
+                if pending:
+                    reconstructed = _reconstruct_scan_from_cache(pending)
+                    if reconstructed:
+                        scan_tables = reconstructed["tables"]
+            for tbl in scan_tables:
+                ext = tbl.get("external_id", "")
+                log.info("mcc_scan: table=%s external_id=%s", tbl.get("name"), ext)
+                if "://" in ext:
+                    ext_uuid = ext.split("://")[0]
+                    catalog_source_name = tbl.get("connection") or tbl.get("schema") or tbl["name"]
+                    break
+            if not ext_uuid and scan_tables:
+                ext_uuid = _get_catalog_source_uuid(scan_tables[0]["name"]) or ""
+                catalog_source_name = scan_tables[0]["name"]
+
+        log.info("mcc_scan: ext_uuid=%s name=%s", ext_uuid, catalog_source_name)
+        if not ext_uuid:
+            return {"step": step, "reasoning": reasoning, "error": "Could not resolve MCC catalog source UUID from scanned table external IDs."}
+        # `catalog_source_name` above is really the scanned *table* name. Keep it
+        # for context, but resolve the actual catalog-source name for display.
+        scanned_table = catalog_source_name
+        # Resolve actual MCC execution ID (may differ from CDGC asset UUID)
+        catalog_source_id = _resolve_mcc_source_id(ext_uuid, catalog_source_name)
+        display_source = _get_mcc_source_name(catalog_source_id, fallback=catalog_source_name)
+        log.info("mcc_scan: final catalog_source_id=%s display=%s", catalog_source_id, display_source)
         try:
             job_resp = _trigger_mcc_scan(catalog_source_id, ["Data Quality"])
+            job_id = job_resp.get("jobId") or job_resp.get("id") or ""
+            result = {
+                "status":         job_resp.get("status", "SUBMITTED"),
+                "job_id":         job_id,
+                "catalog_source": display_source,
+                "table":          scanned_table,
+                "catalog_source_id": catalog_source_id,
+                "capabilities":   ["Data Quality"],
+                "task_groups":    job_resp.get("taskGroups", []),
+                "tracking_uri":   job_resp.get("trackingURI", ""),
+                "note": (
+                    "MCC Data Quality scan submitted. CDQ rules will run against live Snowflake data "
+                    "(5000 rows) and publish real scores to DQROs, overwriting the interim scores."
+                ),
+            }
+            state["mcc_scan"] = {"job_id": job_id, "status": job_resp.get("status", "SUBMITTED")}
         except RuntimeError as e:
-            return {"step": step, "reasoning": reasoning, "error": str(e)}
-        job_id = job_resp.get("jobId") or job_resp.get("id") or ""
-        result = {
-            "status":       job_resp.get("status", "SUBMITTED"),
-            "job_id":       job_id,
-            "catalog_source": "CDGC-SNOWFLAKE-TERDEV",
-            "capabilities": ["Data Quality"],
-            "task_groups":  job_resp.get("taskGroups", []),
-            "tracking_uri": job_resp.get("trackingURI", ""),
-            "note": (
-                "MCC Data Quality scan submitted. CDQ rules will run against live Snowflake data "
-                "(5000 rows) and publish real scores to DQROs, overwriting the interim scores."
-            ),
-        }
-        state["mcc_scan"] = {"job_id": job_id, "status": job_resp.get("status", "SUBMITTED")}
+            # The MCC scan trigger failed. Surface the actual API error verbatim
+            # instead of a canned explanation — the cause varies (source not
+            # enabled for Data Quality, DTM execution failure on the agent, etc.).
+            log.warning("mcc_scan: trigger failed for %s: %s", display_source, e)
+            result = {
+                "status": "not_triggered",
+                "catalog_source": display_source,
+                "table":          scanned_table,
+                "catalog_source_id": catalog_source_id,
+                "trigger_error": str(e),
+                "note": (
+                    "The MCC Data Quality scan could not be triggered — see the error above for the exact reason. "
+                    "Interim DQ scores (95%) from the previous step are already published to CDGC and remain visible."
+                ),
+            }
+            state["mcc_scan"] = {"status": "not_triggered", "trigger_error": str(e)}
 
     elif step == "create_cdmp_category":
         result = create_cdmp_category()

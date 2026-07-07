@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import os
+import time as _time
 from pathlib import Path
 from typing import Any
 
@@ -94,9 +95,24 @@ async def get_config():
 @app.post("/api/step/discover")
 async def step_discover():
     try:
-        return await _govern(
-            "show me what schemas and tables are available in the CDGC catalog"
-        )
+        raw = await _call(AI_GOVERNANCE_URL, "list_catalog_tables", {
+            "max_results":     5000,
+            "group_by_source": True,
+        })
+        catalog_sources = raw.get("catalog_sources_grouped", [])
+        tables_for_selection = [
+            {"name": t["name"], "schema": s["schema"], "source": cs["source"]}
+            for cs in catalog_sources
+            for s in cs.get("schemas", [])
+            for t in s.get("tables", [])
+        ]
+        raw["tables_for_selection"]     = tables_for_selection
+        raw["awaiting_table_selection"] = True
+        return {
+            "step":      "list_catalog",
+            "reasoning": "Listing GOVTEST catalog sources with sample tables from CDGC",
+            "result":    raw,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -106,35 +122,81 @@ async def step_discover():
 class ScanRequest(BaseModel):
     table: str
     schema: str
+    scan_all: bool = False
+    table_names: list[str] = []       # pre-resolved names from discover results (for scan_all)
+    total_tables_in_schema: int = 0   # total tables in the selected schema (for time estimate)
 
 
 @app.post("/api/step/scan")
 async def step_scan(req: ScanRequest):
     try:
-        scan = await _govern(f"Scan {req.table} from {req.schema}")
-        next_actions = scan.get("result", {}).get("next_actions", [])
-        columns: list[dict] = []
-        for action in next_actions:
-            if action.get("tool") == "scan_fetch_columns":
-                p = action["params"]
-                col = await _call(AI_GOVERNANCE_URL, "scan_fetch_columns", {
-                    "table_name": p["table_name"],
-                    "table_id":   p["table_id"],
-                    "schema":     p.get("schema", ""),
-                    "external_id": p.get("external_id", ""),
-                })
-                columns.append(col)
-        return {"scan": scan, "columns": columns}
+        # Resolve table names for this schema — bypass LLM govern routing to prevent
+        # session state from a previous scan overriding the user's current selection.
+        if req.scan_all or not req.table:
+            # Use pre-resolved table names sent by the frontend from discover results —
+            # avoids a second CDGC round-trip that can return 0 due to session/relevance caps.
+            table_names = req.table_names[:10] if req.table_names else []
+        else:
+            table_names = [req.table]
+
+        if not table_names:
+            return {
+                "scan": {"step": "scan", "result": {"found_count": 0, "missing": [], "tables": [], "next_actions": []}},
+                "columns": [],
+            }
+
+        t0 = _time.monotonic()
+
+        find_result = await _call(AI_GOVERNANCE_URL, "scan_find_tables", {
+            "table_names": table_names,
+            "schema_hint": req.schema,
+        })
+        fetch_actions = [
+            a for a in find_result.get("next_actions", [])
+            if a.get("tool") == "scan_fetch_columns"
+        ]
+
+        async def _fetch_one(p: dict) -> dict:
+            return await _call(AI_GOVERNANCE_URL, "scan_fetch_columns", {
+                "table_name":  p["table_name"],
+                "table_id":    p["table_id"],
+                "schema":      p.get("schema", ""),
+                "external_id": p.get("external_id", ""),
+            })
+
+        columns = list(await asyncio.gather(*[_fetch_one(a["params"]) for a in fetch_actions]))
+
+        elapsed         = round(_time.monotonic() - t0, 1)
+        tables_scanned  = len([c for c in columns if c])
+        total_in_schema = req.total_tables_in_schema or 0
+        per_table_s     = (elapsed / tables_scanned) if tables_scanned > 0 else 0
+        est_full_min    = round(per_table_s * total_in_schema / 60, 1) if total_in_schema > 0 else 0
+
+        return {
+            "scan":                  {"step": "scan", "result": find_result},
+            "columns":               columns,
+            "elapsed_seconds":       elapsed,
+            "tables_scanned":        tables_scanned,
+            "total_in_schema":       total_in_schema,
+            "estimated_full_minutes": est_full_min,
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Step 3: Taxonomy ──────────────────────────────────────────────────────────
 
+class TaxonomyRequest(BaseModel):
+    table_names: list[str] = []   # scanned table names — loaded from cache server-side
+
 @app.post("/api/step/taxonomy")
-async def step_taxonomy():
+async def step_taxonomy(req: TaxonomyRequest = TaxonomyRequest()):
     try:
-        return await _govern("Generate a governance taxonomy for the scanned data")
+        return await _call(AI_GOVERNANCE_URL, "generate_governance_taxonomy", {
+            "table_names": req.table_names or [],
+        })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -189,13 +251,20 @@ async def step_system_dataset():
 async def step_curate():
     try:
         plan = await _govern("Link the columns to their business terms")
-        batch_count = plan.get("result", {}).get("batch_count", 1)
+        plan_error = plan.get("error") or (plan.get("result") or {}).get("error")
+        if plan_error:
+            raise HTTPException(status_code=400, detail=f"Curate plan failed: {plan_error}")
+        batch_count = plan.get("result", {}).get("batch_count", 0)
         batch_size  = plan.get("result", {}).get("batch_size", 40)
+        if batch_count == 0:
+            raise HTTPException(status_code=400, detail="No columns found to curate. Ensure scan completed successfully.")
         batches: list[dict] = []
         for i in range(batch_count):
             r = await _call(AI_GOVERNANCE_URL, "curate_batch", {
                 "batch_index": i, "batch_size": batch_size,
             })
+            if r.get("error"):
+                raise HTTPException(status_code=400, detail=f"curate_batch[{i}] error: {r['error']}")
             batches.append(r)
             if r.get("done"):
                 break
@@ -215,11 +284,14 @@ async def step_dq_rules():
         for action in next_actions:
             if action.get("tool") == "create_generic_dq_rules":
                 p = action["params"]
-                rules = await _call(GOVERNANCE_ENGINE_URL, "create_generic_dq_rules", {
+                call_params = {
                     "table_name":     p["table_name"],
                     "column_ids":     p["column_ids"],
                     "catalog_origin": p["catalog_origin"],
-                })
+                }
+                if p.get("source_table_path"):
+                    call_params["source_table_path"] = p["source_table_path"]
+                rules = await _call(GOVERNANCE_ENGINE_URL, "create_generic_dq_rules", call_params)
         if rules:
             occurrences = rules.get("occurrences_registered", [])
             if occurrences:
@@ -442,4 +514,5 @@ app.mount("/", StaticFiles(directory="ui_static", html=True), name="static")
 
 if __name__ == "__main__":
     _port = int(os.getenv("GOVERNANCE_UI_PORT", "8080"))
-    uvicorn.run("governance_ui:app", host="127.0.0.1", port=_port, reload=False, log_level="info")
+    _host = os.getenv("GOVERNANCE_UI_HOST", "127.0.0.1")
+    uvicorn.run("governance_ui:app", host=_host, port=_port, reload=False, log_level="info")

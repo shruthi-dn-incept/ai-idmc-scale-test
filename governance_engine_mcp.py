@@ -161,8 +161,8 @@ def _request(method: str, url: str, **kw) -> httpx.Response:
 
     timeout = kw.pop("timeout", 120)
     r = httpx.request(method, url, headers=headers, timeout=timeout, **kw)
-    if r.status_code == 401:
-        log.info("HTTP 401 — refreshing session and retrying")
+    if r.status_code in (401, 503):
+        log.info("HTTP %d from %s — refreshing session and retrying", r.status_code, url)
         sid, _ = _login_v2()
         headers["IDS-SESSION-ID"] = sid
         r = httpx.request(method, url, headers=headers, timeout=timeout, **kw)
@@ -1188,7 +1188,19 @@ def generate_dq_mapping_task(
     # compatible with any (re-)publish of M_DQ_Generic without code edits.
     mr = _request_v2("GET", f"/api/v2/mapping/{template_mapping_id}")
     if mr.status_code != 200:
-        raise RuntimeError(f"mapping lookup HTTP {mr.status_code}: {mr.text[:300]}")
+        # A 403 REPO_36004 ("error occurred while loading the mapping") almost
+        # always means the configured template id is stale / unpublished /
+        # invisible to this org — not a transient repo fault. Surface that
+        # actionable hint instead of the raw internal-error text, which
+        # otherwise reads as a server-side problem.
+        hint = ""
+        if mr.status_code in (403, 404) or "REPO_36004" in (mr.text or ""):
+            hint = (
+                f" — template mapping id '{template_mapping_id}' is not loadable in this org. "
+                "It is likely stale, deleted, or unpublished. Set IDMC_DQ_TEMPLATE_MAPPING_ID "
+                "to a currently-published M_DQ_Generic mapping (verify with probe_dq_template.py)."
+            )
+        raise RuntimeError(f"mapping lookup HTTP {mr.status_code}: {mr.text[:300]}{hint}")
     _raw = mr.json() or {}
     if isinstance(_raw, list):
         _raw = _raw[0] if _raw else {}
@@ -2242,6 +2254,58 @@ def _infer_dimensions_for_column(col_name: str, data_type: str) -> list[str]:
     return dims
 
 
+def _delete_existing_rule_occurrences(column_names: list[str], catalog_origin: str) -> int:
+    """Delete all CDGC RuleInstance occurrences for the given column names and catalog origin.
+
+    Searches by occurrence name pattern DQ_{col}_{dim} and deletes any matching
+    RuleInstance assets. Safe to call before re-creating occurrences.
+    Returns number of occurrences deleted.
+    """
+    _all_dims = ["COMPLETENESS", "VALIDITY", "UNIQUENESS", "TIMELINESS", "ACCURACY", "CONSISTENCY"]
+    deleted = 0
+    publish_url = f"{CDGC_API_BASE}/ccgf-contentv2/api/v1/publish"
+
+    for col_name in column_names:
+        for dim in _all_dims:
+            occ_name = f"DQ_{col_name}_{dim}"
+            search_url = (
+                f"{CDGC_API_BASE}/data360/search/v1/assets"
+                f"?knowledgeQuery={quote(occ_name)}&segments=summary,systemAttributes"
+            )
+            try:
+                sr = _request_cdgc("POST", search_url, json={"from": 0, "size": 20})
+                if sr.status_code != 200:
+                    continue
+                for hit in (sr.json() or {}).get("hits", []):
+                    ctype = (hit.get("systemAttributes") or {}).get("core.classType") or ""
+                    if "RuleInstance" not in ctype:
+                        continue
+                    hit_name = (hit.get("summary") or {}).get("core.name") or ""
+                    if hit_name != occ_name:
+                        continue
+                    hit_origin = (hit.get("systemAttributes") or {}).get("core.origin") or ""
+                    if catalog_origin and hit_origin and hit_origin != catalog_origin:
+                        continue
+                    internal_id = (hit.get("systemAttributes") or {}).get("core.identity") or hit.get("id") or ""
+                    if not internal_id:
+                        continue
+                    del_body = {"items": [{
+                        "elementType":  "OBJECT",
+                        "operation":    "DELETE",
+                        "type":         "com.infa.ccgf.models.governance.RuleInstance",
+                        "identity":     internal_id,
+                        "identityType": "INTERNAL",
+                    }]}
+                    dr = _request_cdgc("POST", publish_url, json=del_body)
+                    if dr.status_code in (200, 201, 207):
+                        deleted += 1
+                        log.info("deleted rule occurrence %s (internal_id=%s)", occ_name, internal_id)
+            except Exception as exc:
+                log.warning("_delete_existing_rule_occurrences: error for %s/%s: %s", col_name, dim, exc)
+
+    return deleted
+
+
 @mcp.tool()
 def create_generic_dq_rules(
     table_name: str,
@@ -2251,6 +2315,8 @@ def create_generic_dq_rules(
     criticality: str = "High",
     target: float = 95.0,
     threshold: float = 80.0,
+    source_table_path: str | None = None,
+    cleanup_existing: bool = False,
 ) -> dict[str, Any]:
     """Create diversified DQ rules and register occurrences on every column supplied.
 
@@ -2266,21 +2332,39 @@ def create_generic_dq_rules(
     One rule spec is created per (table, dimension) pair and reused across columns
     — avoiding one-rule-per-column sprawl.
 
-    Args:
-      table_name:      Source table name (used in rule naming).
-      column_ids:      List of {column_name, column_id[, data_type]} dicts.
-      catalog_origin:  CDGC catalog origin (first segment of the table's external_id).
-      dimensions:      Override dimension list applied to all columns. When omitted,
-                       dimensions are inferred per column from data_type.
-      criticality:     CDGC occurrence criticality (default "High").
-      target:          Target score % (default 95).
-      threshold:       Minimum acceptable score % (default 80).
+    When source_table_path is provided and IDMC_DQ_CONNECTION_ID / IDMC_DQ_RUNTIME_ENV_ID
+    env vars are set, an M_DQ_Generic mapping task is created for each (rule, column)
+    pair so CDQ can execute the rules against the Snowflake source.
 
-    Returns: {rules_created, occurrences_registered, errors, summary}
+    Args:
+      table_name:        Source table name (used in rule naming).
+      column_ids:        List of {column_name, column_id[, data_type]} dicts.
+      catalog_origin:    CDGC catalog origin (first segment of the table's external_id).
+      dimensions:        Override dimension list applied to all columns. When omitted,
+                         dimensions are inferred per column from data_type.
+      criticality:       CDGC occurrence criticality (default "High").
+      target:            Target score % (default 95).
+      threshold:         Minimum acceptable score % (default 80).
+      source_table_path: Snowflake path (DB/SCHEMA/TABLE) used to bind mapping tasks.
+                         When omitted, no mapping tasks are created.
+      cleanup_existing:  Delete any pre-existing rule occurrences for these columns
+                         before creating new ones (default False — deletion is OFF).
+                         Disabled for now: during a CDGC outage the delete can succeed
+                         while the recreate fails, silently dropping DQROs. Pass True
+                         explicitly to opt back into cleanup of stale/errored occurrences.
+
+    Returns: {rules_created, occurrences_registered, mapping_tasks_created, errors, summary}
     """
     rules_created: list[dict[str, Any]] = []
     occurrences: list[dict[str, Any]] = []
     errors: list[str] = []
+    deleted_count = 0
+
+    # Delete stale/errored occurrences from prior runs before creating fresh ones
+    if cleanup_existing and column_ids:
+        col_names = [c.get("column_name", "") for c in column_ids if c.get("column_name")]
+        deleted_count = _delete_existing_rule_occurrences(col_names, catalog_origin)
+        log.info("create_generic_dq_rules: deleted %d stale occurrences before re-create", deleted_count)
 
     # Cache of rule_id per dimension so we create the spec only once per dim
     dim_rule_cache: dict[str, str] = {}
@@ -2386,14 +2470,71 @@ def create_generic_dq_rules(
                 if not recovered:
                     errors.append(f"register {col_name}/{dim}: {err_str[:120]}")
 
+    # ------------------------------------------------------------------
+    # Optionally create M_DQ_Generic mapping tasks so CDQ can execute rules
+    # ------------------------------------------------------------------
+    mapping_tasks_created: list[dict[str, Any]] = []
+    if source_table_path:
+        _src_conn = os.getenv("IDMC_DQ_CONNECTION_ID", "")
+        _rt_env   = os.getenv("IDMC_DQ_RUNTIME_ENV_ID", "")
+        _tmpl     = DEFAULT_DQ_TEMPLATE_MAPPING_ID
+        if _src_conn and _rt_env:
+            _tgt_tbl = source_table_path + "_BAD_RECORDS"
+            # One mapping task per (rule_id, column) occurrence
+            _seen_tasks: set[tuple[str, str]] = set()
+            for occ in occurrences:
+                col_name = occ.get("column", "")
+                dim      = occ.get("dimension", "")
+                rule_id  = dim_rule_cache.get(dim, "")
+                if not rule_id or not col_name:
+                    continue
+                task_key = (rule_id, col_name)
+                if task_key in _seen_tasks:
+                    continue
+                _seen_tasks.add(task_key)
+                try:
+                    mt = generate_dq_mapping_task(
+                        source_connection_id=_src_conn,
+                        source_table=source_table_path,
+                        target_connection_id=_src_conn,
+                        target_table=_tgt_tbl,
+                        input_field_mapping=f"{col_name}=Input",
+                        runtime_environment_id=_rt_env,
+                        template_mapping_id=_tmpl,
+                        rule_spec_id=rule_id,
+                        task_name=f"mt_{table_name}_{col_name}_{dim}",
+                    )
+                    mapping_tasks_created.append({
+                        "task_id":   mt.get("id", ""),
+                        "task_name": mt.get("name", f"mt_{table_name}_{col_name}_{dim}"),
+                        "rule_id":   rule_id,
+                        "column":    col_name,
+                        "dimension": dim,
+                    })
+                except Exception as e:
+                    err_str = str(e)
+                    if "already exists" in err_str.lower() or "duplicate" in err_str.lower():
+                        mapping_tasks_created.append({
+                            "task_name": f"mt_{table_name}_{col_name}_{dim}",
+                            "rule_id":   rule_id,
+                            "column":    col_name,
+                            "dimension": dim,
+                            "note":      "already exists",
+                        })
+                    else:
+                        errors.append(f"mapping task {col_name}/{dim}: {err_str[:120]}")
+
     return {
-        "rules_created":         rules_created,
+        "rules_created":          rules_created,
         "occurrences_registered": occurrences,
-        "errors":                errors,
+        "mapping_tasks_created":  mapping_tasks_created,
+        "errors":                 errors,
         "summary": {
-            "rule_count":       len(rules_created),
-            "occurrence_count": len(occurrences),
-            "error_count":      len(errors),
+            "rule_count":         len(rules_created),
+            "occurrence_count":   len(occurrences),
+            "mapping_task_count": len(mapping_tasks_created),
+            "deleted_count":      deleted_count,
+            "error_count":        len(errors),
         },
     }
 
