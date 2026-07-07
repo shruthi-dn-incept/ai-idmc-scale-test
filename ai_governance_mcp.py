@@ -1531,6 +1531,7 @@ glossary taxonomy in JSON. Rules:
         "domain_count":   len(result.get("domains", [])),
         "subdomain_count": sum(len(d.get("subdomains", [])) for d in result.get("domains", [])),
         "term_count":     total_terms,
+        "tables_processed": len(tables_summary),
     }
     # Persist to govern state so downstream steps (domain_structure, curate) can read it
     state = _load_govern_state()

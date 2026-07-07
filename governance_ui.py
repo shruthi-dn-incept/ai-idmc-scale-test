@@ -235,7 +235,11 @@ async def step_taxonomy(req: TaxonomyRequest = TaxonomyRequest()):
             "table_names": req.table_names or [],
         })
         out = dict(out) if isinstance(out, dict) else {"result": out}
-        sample = req.sample_tables or len(req.table_names or [])
+        # Prefer the actual count of tables the tool processed (from the scan cache) —
+        # the frontend's sample_tables can be 0 if the scan wasn't run this session.
+        processed = ((out.get("_summary") or {}).get("tables_processed")
+                     or (out.get("result") or {}).get("_summary", {}).get("tables_processed"))
+        sample = processed or req.sample_tables or len(req.table_names or [])
         out.update(_estimate_block(_time.monotonic() - t0, sample, req.total_in_schema))
         return out
     except Exception as e:
