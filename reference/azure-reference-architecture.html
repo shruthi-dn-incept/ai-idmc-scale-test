@@ -1,0 +1,194 @@
+<style>
+  :root{
+    --ground:#F5F8FA; --panel:#FFFFFF; --ink:#0F2130; --muted:#57697A;
+    --line:#DBE3E9; --line-strong:#C4D0D9;
+    --accent:#0E6E8E; --accent-ink:#0A4E66; --accent-soft:#E6F1F5;
+    --good:#1C7C54; --good-soft:#E5F1EA;
+    --warn:#9C5D0E; --warn-soft:#F6ECD8;
+    --mono:ui-monospace,"SFMono-Regular","SF Mono",Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  .doc{
+    font-family:var(--sans); color:var(--ink); background:var(--ground);
+    line-height:1.5; max-width:920px; margin:0 auto; padding:40px 28px 64px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .doc h1,.doc h2,.doc h3{text-wrap:balance; line-height:1.15; margin:0}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent-ink); font-weight:600}
+  .h1{font-size:32px; font-weight:700; letter-spacing:-.02em; margin:10px 0 8px}
+  .lede{font-size:16px; color:var(--muted); max-width:64ch}
+  .metarow{display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:18px; font-family:var(--mono); font-size:12px; color:var(--muted)}
+  .metarow b{color:var(--ink); font-weight:600}
+  .rule{height:1px; background:var(--line); margin:28px 0}
+  h2.sec{font-size:12px; font-family:var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--accent-ink); font-weight:600; margin-bottom:14px}
+
+  /* diagram */
+  .flowwrap{overflow-x:auto; padding:4px 0 8px}
+  .flow{display:flex; align-items:stretch; gap:10px; min-width:640px}
+  .node{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 13px; min-width:130px}
+  .node .k{font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+  .node .t{font-weight:650; font-size:14px; margin:3px 0 4px}
+  .node .d{font-size:12px; color:var(--muted); line-height:1.4}
+  .node.acc{border-color:var(--accent); background:var(--accent-soft)}
+  .node.acc .k{color:var(--accent-ink)}
+  .arrow{display:flex; align-items:center; color:var(--line-strong); font-size:20px; font-weight:700; flex:0 0 auto}
+  .flownote{font-size:12px; color:var(--muted); font-family:var(--mono); margin-top:8px}
+
+  /* q grid */
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px 17px}
+  .card .q{font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+  .card h3{font-size:16px; font-weight:680; margin:5px 0 7px}
+  .card p{font-size:13.5px; color:var(--ink); margin:0}
+  .card p .m{color:var(--muted)}
+  .pill{display:inline-block; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.04em; padding:2px 8px; border-radius:20px; margin-bottom:9px}
+  .pill.good{background:var(--good-soft); color:var(--good)}
+  .pill.acc{background:var(--accent-soft); color:var(--accent-ink)}
+
+  /* table */
+  .tblwrap{overflow-x:auto}
+  table{border-collapse:collapse; width:100%; font-size:13px; min-width:560px}
+  th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); font-weight:600; border-bottom:1px solid var(--line-strong)}
+  td code{font-family:var(--mono); font-size:12px; background:var(--ground); padding:1px 6px; border-radius:5px; border:1px solid var(--line)}
+  .tag{font-family:var(--mono); font-size:10.5px; font-weight:600; padding:1.5px 7px; border-radius:5px; white-space:nowrap}
+  .tag.ms{background:var(--good-soft); color:var(--good)}
+  .tag.you{background:var(--warn-soft); color:var(--warn)}
+
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:22px}
+  .two h3{font-size:15px; font-weight:680; margin-bottom:8px}
+  .two ul{margin:0; padding-left:18px; font-size:13.5px; color:var(--ink)}
+  .two li{margin:5px 0}
+  .two li b{font-weight:640}
+
+  .callout{background:var(--warn-soft); border:1px solid #E7D3A8; border-left:3px solid var(--warn); border-radius:10px; padding:14px 16px; font-size:13.5px}
+  .callout b{color:var(--warn)}
+  .foot{margin-top:30px; padding-top:16px; border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); font-family:var(--mono); display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px}
+  @media(max-width:640px){ .grid,.two{grid-template-columns:1fr} .h1{font-size:26px} }
+</style>
+
+<div class="doc">
+  <div class="eyebrow">Reference Architecture · Prepared for Infrastructure &amp; Security Review</div>
+  <h1 class="h1">AI Data Governance Agent on Azure</h1>
+  <p class="lede">A containerized, batch-mode governance agent that catalogs, curates, and applies data-quality rules across a Snowflake estate through Informatica IDMC/CDGC — deployed on fully-managed Azure Container Apps, with no cluster to operate.</p>
+  <div class="metarow">
+    <span><b>Platform</b> Azure Container Apps (Jobs)</span>
+    <span><b>Region</b> East US</span>
+    <span><b>Resource group</b> govtest-scale-rg</span>
+    <span><b>Prepared</b> July 2026</span>
+  </div>
+
+  <div class="rule"></div>
+
+  <h2 class="sec">Deployment topology</h2>
+  <div class="flowwrap">
+    <div class="flow">
+      <div class="node">
+        <div class="k">Trigger</div>
+        <div class="t">Portal / CLI / Schedule</div>
+        <div class="d">One command or a nightly cron. Anyone on the team — not one laptop.</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node">
+        <div class="k">Registry</div>
+        <div class="t">Azure Container Registry</div>
+        <div class="d">Versioned agent image. <code>govtestscaleacr</code></div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node acc">
+        <div class="k">Compute</div>
+        <div class="t">ACA Job — scale-to-zero</div>
+        <div class="d">Runs the batch, then stops. Zero cost when idle. <code>govtest-scale-job</code></div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node">
+        <div class="k">Governed platform</div>
+        <div class="t">IDMC / CDGC + Snowflake</div>
+        <div class="d">All access over REST APIs. Catalog, glossary, DQ rules + scores.</div>
+      </div>
+    </div>
+  </div>
+  <div class="flownote">Secrets (Snowflake key-pair, IDMC creds, LLM key) injected from the Container App secret store / Key Vault — never in the image. Egress to Snowflake &amp; IDMC over TLS; can sit behind Entra ID SSO and private networking.</div>
+
+  <div class="rule"></div>
+
+  <h2 class="sec">The four questions this answers</h2>
+  <div class="grid">
+    <div class="card">
+      <span class="pill good">No full-time owner</span>
+      <div class="q">Who maintains the infrastructure?</div>
+      <h3>Microsoft runs the control plane.</h3>
+      <p>ACA is managed Kubernetes (AKS + KEDA) under the hood — <span class="m">you never touch a cluster, node pool, or patch cycle.</span> Your team owns only app config and one agent runtime (below).</p>
+    </div>
+    <div class="card">
+      <span class="pill acc">Batch · linear</span>
+      <div class="q">Will it hold at volume?</div>
+      <h3>Tiered scale test, extrapolated to 25k.</h3>
+      <p>Run in tiers (1k → 4k → full catalog) capturing throughput; the curve extrapolates to the <span class="m">20–25k-table Aetna lake.</span> Sizing numbers accompany this sheet.</p>
+    </div>
+    <div class="card">
+      <span class="pill acc">Pay-per-run</span>
+      <div class="q">What does it cost?</div>
+      <h3>You pay while it runs, nothing when idle.</h3>
+      <p>ACA Job scales to zero between runs. Cost = container compute per run + Snowflake credits for DQ execution + agent VM only while scanning. <span class="m">Per-run figures in the sizing table.</span></p>
+    </div>
+    <div class="card">
+      <span class="pill good">Enterprise-ready</span>
+      <div class="q">Is it secure &amp; standards-fit?</div>
+      <h3>Secrets managed; SSO &amp; private-net ready.</h3>
+      <p>No hardcoded credentials — all via secret store / Key Vault. Fits behind <span class="m">Entra ID SSO and VNet/private endpoints</span> per CVS enterprise standards.</p>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <h2 class="sec">Components &amp; who operates each</h2>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Component</th><th>Azure resource</th><th>Role</th><th>Operated by</th></tr></thead>
+      <tbody>
+        <tr><td>Agent image</td><td><code>governance-stack</code> in ACR</td><td>Containerized batch agent (scan → curate → DQ)</td><td><span class="tag ms">Microsoft-hosted</span></td></tr>
+        <tr><td>Batch compute</td><td><code>govtest-scale-job</code> (ACA Job)</td><td>Runs the catalog/DQ workload, scale-to-zero</td><td><span class="tag ms">Fully managed</span></td></tr>
+        <tr><td>Interactive UI</td><td><code>govtest-ui</code> (ACA app)</td><td>Demo / operator console for the pipeline</td><td><span class="tag ms">Fully managed</span></td></tr>
+        <tr><td>Secrets</td><td>Secret store / Key Vault</td><td>Snowflake key-pair, IDMC creds, LLM key</td><td><span class="tag ms">Managed</span></td></tr>
+        <tr><td>DQ execution runtime</td><td><code>govtest-agent-vm</code> (Secure Agent)</td><td>Runs DQ mappings against Snowflake data</td><td><span class="tag you">You manage</span></td></tr>
+        <tr><td>Governed platform</td><td>IDMC / CDGC + Snowflake</td><td>Catalog, glossary, DQ scores, source data</td><td><span class="tag ms">SaaS</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="two">
+    <div>
+      <h2 class="sec">Why ACA Jobs, not AKS — now</h2>
+      <ul>
+        <li><b>Zero cluster ops.</b> ACA runs on managed AKS + KEDA; Microsoft owns the control plane. Directly answers "do I need a full-time infra person" — no.</li>
+        <li><b>Scale-to-zero economics.</b> A run-then-stop batch job costs nothing idle; cheaper than always-on AKS nodes for this workload.</li>
+        <li><b>Days, not weeks.</b> No cluster to design, secure, and hand off before the scale test.</li>
+        <li><b>Nothing throwaway.</b> ACA runs on AKS underneath — if CVS mandates AKS, the <b>same container image lifts straight over.</b></li>
+      </ul>
+    </div>
+    <div>
+      <h2 class="sec">Data &amp; security flow</h2>
+      <ul>
+        <li><b>API-only access.</b> The agent reaches IDMC/CDGC and Snowflake over authenticated REST/TLS — no direct DB sprawl.</li>
+        <li><b>Key-pair to Snowflake.</b> Service account with RSA key-pair auth; no passwords in transit.</li>
+        <li><b>Secrets externalized.</b> Injected at runtime from the secret store; the image carries none.</li>
+        <li><b>Identity &amp; network.</b> Deployable behind Entra ID SSO with VNet integration / private endpoints.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="rule"></div>
+
+  <div class="callout">
+    <b>One honest note for your infra team.</b> Informatica's <b>Secure Agent</b> cannot be serverless — it needs a runtime. Today it runs on a single self-managed VM (<code style="font-family:var(--mono)">govtest-agent-vm</code>, D8s&nbsp;v3), configured to start unattended on boot and deallocate when idle. It is the <b>one</b> component your team tends; it can be containerized onto ACA later if desired. Everything else is fully managed.
+  </div>
+
+  <div class="foot">
+    <span>Incept Data Solutions · AI-IDMC Governance</span>
+    <span>Companion: scale-test sizing table (throughput · resource envelope · cost)</span>
+  </div>
+</div>
