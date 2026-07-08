@@ -1,8 +1,10 @@
 # deploy/azure_deploy_scan_job.ps1
 # (Re)deploys the scan + DQ-asset scale runner as the ACA Job, driven by .env.
 # Runs on Azure (where FRS/DQ is reachable; local 503s).
-# Usage:  .\deploy\azure_deploy_scan_job.ps1 [tableLimit]   (default 25; "all" for full)
-param([string]$TableLimit = "25")
+# Usage:  .\deploy\azure_deploy_scan_job.ps1 [tableLimit] [workers]
+#   tableLimit: number of tables, or "all" for full catalog (default 25)
+#   workers:    parallel workers for the hardened runner (default 8)
+param([string]$TableLimit = "25", [string]$Workers = "8")
 
 # Continue (not Stop): az writes benign WARNINGs to stderr which PS 5.1 would
 # otherwise treat as terminating errors. We check results explicitly instead.
@@ -41,7 +43,7 @@ az containerapp job create `
   --trigger-type Manual --replica-timeout 7200 --replica-retry-limit 0 `
   --image "$ACR_SERVER/$IMAGE" --cpu 2 --memory "4Gi" `
   --registry-server $ACR_SERVER --registry-username $ACR_USER --registry-password $ACR_PASS `
-  --command "/bin/bash" --args "start_scale_scan_dq.sh" "$TableLimit" `
+  --command "/bin/bash" --args "start_full_pipeline.sh" "$Workers" "$TableLimit" `
   --secrets "idmc-pass=$($e['IDMC_PASS'])" `
   --env-vars `
     "IDMC_USER=$($e['IDMC_USER'])" "IDMC_PASS=secretref:idmc-pass" `
