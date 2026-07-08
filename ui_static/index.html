@@ -284,10 +284,10 @@ function ScanResult({ data, scanSource, scanSchema }) {
     <div className="space-y-4">
       {/* Summary banner */}
       <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-sm text-green-700 font-medium flex flex-wrap items-center gap-2">
-        <span>Scanned <strong>{scanned}</strong> {scanned === 1 ? "table" : "tables"}{totalInSchema > scanned ? ` of ${totalInSchema.toLocaleString()}` : ""} in <span className="font-mono">{scanSchema || "schema"}</span> — <strong>{elapsed}s</strong></span>
+        <span>Scanned <strong>{scanned}</strong> {scanned === 1 ? "table" : "tables"}{totalInSchema > scanned ? ` of ${totalInSchema.toLocaleString()}` : ""} in <span className="font-mono">{scanSchema === "__ALL_SCHEMAS__" ? "all schemas" : (scanSchema || "schema")}</span> — <strong>{elapsed}s</strong></span>
         {estLabel && totalInSchema > scanned && (
           <span className="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">
-            Full schema: {estLabel} ({totalInSchema.toLocaleString()} tables)
+            {scanSchema === "__ALL_SCHEMAS__" ? "All schemas" : "Full schema"}: {estLabel} ({totalInSchema.toLocaleString()} tables)
           </span>
         )}
       </div>
@@ -1603,10 +1603,23 @@ function App() {
       };
       if      (stepId === "discover")         data = await apiPost("/api/step/discover", {}, sig);
       else if (stepId === "scan") {
-        const isAll = scanTable === "__ALL__";
+        const isAllSchemas = scanSchema === "__ALL_SCHEMAS__";
+        const isAll = isAllSchemas || scanTable === "__ALL__";
         let scanTableNames = [];
         let totalInSchema  = 0;
-        if (isAll) {
+        let schemaArg      = scanSchema;
+        if (isAllSchemas) {
+          // Sample a couple of tables from every schema across all sources; extrapolate to the grand total.
+          const groups = results.discover?.result?.catalog_sources_grouped || [];
+          const sample = [];
+          groups.forEach(cs => (cs.schemas || []).forEach(s => {
+            const tbls = s.tables || [];
+            totalInSchema += tbls.length;
+            tbls.slice(0, 2).forEach(t => { if (sample.length < 10) sample.push(t.name); });
+          }));
+          scanTableNames = sample;
+          schemaArg = "";   // cross-schema — backend resolves each table by name
+        } else if (isAll) {
           const src = (results.discover?.result?.catalog_sources_grouped || []).find(cs => cs.source === scanSource);
           const schemaObj = (src?.schemas || []).find(s => s.schema === scanSchema);
           const allTables = schemaObj?.tables || [];
@@ -1623,7 +1636,7 @@ function App() {
         }
         data = await apiPost("/api/step/scan", {
           table:                  isAll ? "" : scanTable,
-          schema:                 scanSchema,
+          schema:                 schemaArg,
           scan_all:               isAll,
           table_names:            scanTableNames,
           total_tables_in_schema: totalInSchema,
@@ -1900,6 +1913,8 @@ function App() {
                   discoverSources.forEach(cs => (cs.schemas || []).forEach(s =>
                     allSchemaEntries.push({ source: cs.source, schema: s.schema, tables: s.tables || [] })));
                   const schemaNames      = [...new Set(allSchemaEntries.map(e => e.schema))].filter(Boolean);
+                  const grandTotalTables = allSchemaEntries.reduce((n, e) => n + (e.tables?.length || 0), 0);
+                  const allSchemasMode   = scanSchema === "__ALL_SCHEMAS__";
                   const selectedEntry    = allSchemaEntries.find(e => e.schema === scanSchema);
                   const tablesInSchema   = selectedEntry ? selectedEntry.tables : [];
                   // Fallback: if no grouped data, use flat discoverTables
@@ -1923,6 +1938,9 @@ function App() {
                             className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-indigo-100"
                           >
                             <option value="">Select a schema…</option>
+                            {schemaNames.length > 0 && grandTotalTables > 0 && (
+                              <option value="__ALL_SCHEMAS__">⚡ All schemas ({grandTotalTables.toLocaleString()} tables total — samples a few, estimates full run)</option>
+                            )}
                             {(schemaNames.length > 0 ? schemaNames : fallbackSchemas).map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                         ) : (
@@ -1932,8 +1950,8 @@ function App() {
                           />
                         )}
                       </div>
-                      {/* Table dropdown */}
-                      <div>
+                      {/* Table dropdown (hidden when scanning all schemas) */}
+                      <div className={allSchemasMode ? "hidden" : ""}>
                         <label className="block text-xs text-slate-500 font-medium mb-1">Table</label>
                         {(tablesInSchema.length > 0 || fallbackTables.length > 0) ? (
                           <select
