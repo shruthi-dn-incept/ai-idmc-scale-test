@@ -18,7 +18,10 @@ from __future__ import annotations
 import argparse, asyncio, base64, csv, json, os, re, threading, time
 from datetime import datetime, timezone
 
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None   # resource sampling degrades gracefully if unavailable
 import snowflake.connector
 from cryptography.hazmat.primitives import serialization
 from dotenv import load_dotenv
@@ -120,6 +123,8 @@ class ResSampler(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True); self.stop = False; self.peak_mb = 0; self.cpu = []
     def run(self):
+        if psutil is None:
+            return
         psutil.cpu_percent(interval=None)
         while not self.stop:
             tot = 0
