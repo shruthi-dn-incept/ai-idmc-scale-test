@@ -8,3 +8,4 @@ snowflake-connector-python>=3.6
 cryptography>=42.0
 pydantic>=2.0
 psutil
+openpyxl>=3.1

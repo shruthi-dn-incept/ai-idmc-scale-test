@@ -1,0 +1,18 @@
+# Secrets — never bake into the image (passed at runtime via env vars/secrets)
+.env
+.env.*
+*.p8
+snowflake_scale_test_rsa_key*
+rsa_key.*
+
+# Version control / caches
+.git
+.gitignore
+__pycache__/
+*.pyc
+.scan_cache/
+
+# Large / unneeded intermediate artifacts
+# (keep templates/CDGC_DQRO_FULL.xlsx AND CDGC_DQRO_FILLED_TEST.xlsx for the Azure test run)
+templates/CDGC_DQRO_CACHE_ALL.xlsx
+*.log

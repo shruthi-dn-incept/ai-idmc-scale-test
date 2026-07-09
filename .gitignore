@@ -38,3 +38,15 @@ docs/*
 logs/
 .scan_cache/
 .mcp.json
+*.log
+
+# Scale-pipeline generated state/outputs (regenerable by run_scale_pipeline.py)
+taxonomy.json
+colterm_map.json
+term_ids.json
+rule_map.json
+system_dataset.json
+stats.json
+mcc_scan_jobs.json
+# Generated bulk-import file (1.4 MB, regenerable); keep the source template tracked
+templates/CDGC_DQRO_FULL.xlsx
