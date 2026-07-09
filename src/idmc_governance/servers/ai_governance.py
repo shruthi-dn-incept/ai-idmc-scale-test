@@ -1878,16 +1878,27 @@ def create_system_and_dataset(
                 }
                 for tid in chunk
             ]}
-            r = None  # retry transient network errors so one blip doesn't kill the whole loop
-            for _att in range(4):
+            # Retry transient network errors AND CDGC 429 (propagation-job rate
+            # limit, cap 20 in-flight) with backoff so we respect the throttle.
+            import time as _t
+            r = None
+            for _att in range(10):
                 try:
                     r = _request_cdgc("POST", url, json=body, headers=headers)  # auto 401-renew
-                    break
                 except Exception as _e:
-                    if _att == 3:
-                        errors.append({"chunk_start": chunk_start, "error": str(_e)[:120]})
+                    if _att == 9:
+                        errors.append({"chunk_start": chunk_start, "error": str(_e)[:120]}); r = None
                     else:
-                        import time as _t; _t.sleep(2 * (_att + 1))
+                        _t.sleep(2 * (_att + 1))
+                    continue
+                if r.status_code == 429:  # propagation-job queue full — wait for drain
+                    r = None
+                    if _att == 9:
+                        errors.append({"chunk_start": chunk_start, "error": "429 rate limit"})
+                    else:
+                        _t.sleep(min(20, 4 * (_att + 1)))
+                    continue
+                break
             if r is None:
                 continue
             if r.status_code in (200, 201, 207):
