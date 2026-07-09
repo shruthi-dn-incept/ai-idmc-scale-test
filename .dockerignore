@@ -1,9 +1,14 @@
 # Secrets — never bake into the image (passed at runtime via env vars/secrets)
 .env
 .env.*
-*.p8
+secrets/
+**/*.p8
+**/*.pub
 snowflake_scale_test_rsa_key*
 rsa_key.*
+
+# Generated pipeline state (regenerated in-container)
+state/
 
 # Version control / caches
 .git
