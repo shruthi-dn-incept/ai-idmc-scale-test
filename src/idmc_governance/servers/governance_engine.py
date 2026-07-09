@@ -36,7 +36,7 @@ from mcp.server.fastmcp import FastMCP
 # ---------------------------------------------------------------------------
 # Paths & constants
 # ---------------------------------------------------------------------------
-from idmc_governance.common.paths import ENV_PATH  # repo-root .env (src-layout safe)
+from idmc_governance.common.paths import ENV_PATH, REPO_ROOT  # repo-root paths (src-layout safe)
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 _FRS_HOST  = os.getenv("IDMC_FRS_HOST", "")
@@ -546,7 +546,7 @@ def _collect_external_uuids(obj: Any) -> set[str]:
 def _load_template(path: str, auto_uuid: bool) -> dict[str, Any]:
     p = Path(path)
     if not p.is_absolute():
-        p = SCRIPT_DIR / path
+        p = REPO_ROOT / path  # rule templates (e.g. examples/null-check.json) resolve from repo root
     text = p.read_text()
     if auto_uuid:
         # Parse, find externalIDs, rewrite via textual substitution so that
@@ -3526,7 +3526,7 @@ def get_profile_results(object_name: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # recommend_dq_rules — pure local analysis of profile stats → rule templates
 # ---------------------------------------------------------------------------
-_RECOMMENDATION_CONFIG_PATH = SCRIPT_DIR / "examples" / "profiling-rule-mapping.json"
+_RECOMMENDATION_CONFIG_PATH = REPO_ROOT / "examples" / "profiling-rule-mapping.json"
 
 
 def _load_recommendation_config() -> dict[str, Any]:
