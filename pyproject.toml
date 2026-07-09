@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "idmc-governance"
+version = "0.1.0"
+description = "AI-driven Informatica IDMC/CDGC data governance — MCP servers, UI, and full-catalog scale pipeline"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=1.6",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "fastapi>=0.111",
+    "uvicorn>=0.30",
+    "anthropic>=0.28",
+    "snowflake-connector-python>=3.6",
+    "cryptography>=42.0",
+    "pydantic>=2.0",
+    "psutil",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+# Convenience console entrypoints (equivalent to `python -m idmc_governance.<...>`)
+idmc-ui              = "idmc_governance.ui.app:main"
+idmc-scale-pipeline  = "idmc_governance.scale.orchestrator:main"
+idmc-bulk-import     = "idmc_governance.scale.bulk_import:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"idmc_governance.ui" = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

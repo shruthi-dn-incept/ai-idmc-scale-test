@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-import governance_engine_mcp as gem
+from idmc_governance.servers import governance_engine as gem
 
 
 # ---------------------------------------------------------------------------

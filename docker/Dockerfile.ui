@@ -1,0 +1,12 @@
+# Build context is the repo root. Build with: az acr build --file docker/Dockerfile.ui .
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY . .
+
+RUN pip install --no-cache-dir -e .
+
+EXPOSE 9080
+
+CMD ["bash", "scripts/start-ui.sh"]

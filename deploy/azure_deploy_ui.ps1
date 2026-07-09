@@ -32,7 +32,7 @@ Write-Host "[3/6] Building image in ACR (takes ~5 min)..." -ForegroundColor Yell
 az acr build `
   --registry $ACR_NAME `
   --image $IMAGE_TAG `
-  --file Dockerfile.ui `
+  --file docker/Dockerfile.ui `
   .
 Write-Host "  Image pushed: $ACR_NAME.azurecr.io/$IMAGE_TAG" -ForegroundColor Green
 

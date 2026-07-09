@@ -20,6 +20,9 @@ tests/__pycache__/
 *.pyc
 .venv/
 venv/
+*.egg-info/
+build/
+dist/
 
 # Vendor docs: only the index is tracked. The PDFs/ZIPs are vendor-owned
 # and not redistributable, and the zips total hundreds of MB anyway.
@@ -40,13 +43,10 @@ logs/
 .mcp.json
 *.log
 
-# Scale-pipeline generated state/outputs (regenerable by run_scale_pipeline.py)
-taxonomy.json
-colterm_map.json
-term_ids.json
-rule_map.json
-system_dataset.json
-stats.json
-mcc_scan_jobs.json
+# Scale-pipeline generated state/outputs (regenerable by the orchestrator)
+state/
 # Generated bulk-import file (1.4 MB, regenerable); keep the source template tracked
 templates/CDGC_DQRO_FULL.xlsx
+
+# Local secrets (RSA keys etc.)
+secrets/

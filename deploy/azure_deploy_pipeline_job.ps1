@@ -3,7 +3,7 @@
 # Runs entirely on Azure: extract -> taxonomy -> domain -> system/dataset ->
 # DQRO import -> curate -> DQ scan, writing stats.json.
 # Usage:  .\deploy\azure_deploy_pipeline_job.ps1 [pipelineArgs]
-#   pipelineArgs: passed to run_scale_pipeline.py (default "--clean")
+#   pipelineArgs: passed to the orchestrator (default "--clean")
 param([string]$PipelineArgs = "--clean")
 
 $ErrorActionPreference = "Continue"
@@ -22,7 +22,7 @@ az account set --subscription $SUB
 $ACR_SERVER = "$ACR.azurecr.io"
 
 Write-Host "  building image..." -ForegroundColor Yellow
-az acr build --registry $ACR --image $IMAGE . --output none
+az acr build --registry $ACR --image $IMAGE --file docker/Dockerfile . --output none
 $ACR_USER = az acr credential show --name $ACR --query username -o tsv
 $ACR_PASS = az acr credential show --name $ACR --query "passwords[0].value" -o tsv
 
@@ -41,7 +41,7 @@ az containerapp job create `
   --trigger-type Manual --replica-timeout 7200 --replica-retry-limit 0 `
   --image "$ACR_SERVER/$IMAGE" --cpu 2 --memory "4Gi" `
   --registry-server $ACR_SERVER --registry-username $ACR_USER --registry-password $ACR_PASS `
-  --command "/bin/bash" --args "start_scale_pipeline.sh" `
+  --command "/bin/bash" --args "scripts/start_scale_pipeline.sh" `
   --secrets "idmc-pass=$($e['IDMC_PASS'])" "sf-key=$($e['SNOWFLAKE_PRIVATE_KEY_B64'])" "anthropic=$($e['ANTHROPIC_API_KEY'])" `
   --env-vars `
     "PIPELINE_ARGS=$PipelineArgs" `

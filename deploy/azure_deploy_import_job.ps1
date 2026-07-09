@@ -27,7 +27,7 @@ $ACR_SERVER = "$ACR.azurecr.io"
 
 # Build image so the freshly-generated DQRO file + import scripts are baked in.
 Write-Host "  building image (bakes in $DqroFile)..." -ForegroundColor Yellow
-az acr build --registry $ACR --image $IMAGE . --output none
+az acr build --registry $ACR --image $IMAGE --file docker/Dockerfile . --output none
 
 $ACR_USER = az acr credential show --name $ACR --query username -o tsv
 $ACR_PASS = az acr credential show --name $ACR --query "passwords[0].value" -o tsv
@@ -48,7 +48,7 @@ az containerapp job create `
   --trigger-type Manual --replica-timeout 7200 --replica-retry-limit 0 `
   --image "$ACR_SERVER/$IMAGE" --cpu 2 --memory "4Gi" `
   --registry-server $ACR_SERVER --registry-username $ACR_USER --registry-password $ACR_PASS `
-  --command "/bin/bash" --args "start_bulk_import.sh" "$DqroFile" "$Policy" `
+  --command "/bin/bash" --args "scripts/start_bulk_import.sh" "$DqroFile" "$Policy" `
   --secrets "idmc-pass=$($e['IDMC_PASS'])" `
   --env-vars `
     "IDMC_USER=$($e['IDMC_USER'])" "IDMC_PASS=secretref:idmc-pass" `

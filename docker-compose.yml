@@ -3,22 +3,26 @@ version: "3.9"
 # Scale test stack — ports 9765/9770/9080 (demov2 uses 8765/8770/8080)
 services:
   governance-engine:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     env_file: .env.docker
     environment:
       GOVERNANCE_MCP_PORT: "9765"
-    command: python governance_engine_mcp.py
+    command: python -m idmc_governance.servers.governance_engine
     ports:
       - "9765:9765"
     volumes:
       - ./.scan_cache:/app/.scan_cache
 
   ai-governance:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     env_file: .env.docker
     environment:
       AI_GOVERNANCE_MCP_PORT: "9770"
-    command: python ai_governance_mcp.py
+    command: python -m idmc_governance.servers.ai_governance
     ports:
       - "9770:9770"
     volumes:
@@ -27,13 +31,15 @@ services:
       - governance-engine
 
   governance-ui:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     env_file: .env.docker
     environment:
       GOVERNANCE_UI_PORT: "9080"
       GOVERNANCE_ENGINE_URL: "http://governance-engine:9765/mcp"
       AI_GOVERNANCE_URL: "http://ai-governance:9770/mcp"
-    command: python governance_ui.py
+    command: python -m idmc_governance.ui.app
     ports:
       - "9080:9080"
     depends_on:
