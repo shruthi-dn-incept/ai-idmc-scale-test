@@ -1,1 +1,15 @@
-* text=auto
+# Default: normalize text, check out with LF (this repo deploys to Linux containers)
+* text=auto eol=lf
+
+# Shell scripts, Dockerfiles, Python MUST be LF (they run in Linux containers)
+*.sh    text eol=lf
+Dockerfile* text eol=lf
+*.py    text eol=lf
+
+# Windows-only scripts keep CRLF
+*.ps1   text eol=crlf
+
+# Binaries — never touch
+*.xlsx  binary
+*.p8    binary
+*.pub   binary
