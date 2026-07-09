@@ -1878,7 +1878,18 @@ def create_system_and_dataset(
                 }
                 for tid in chunk
             ]}
-            r = _request_cdgc("POST", url, json=body, headers=headers)  # auto 401-renew
+            r = None  # retry transient network errors so one blip doesn't kill the whole loop
+            for _att in range(4):
+                try:
+                    r = _request_cdgc("POST", url, json=body, headers=headers)  # auto 401-renew
+                    break
+                except Exception as _e:
+                    if _att == 3:
+                        errors.append({"chunk_start": chunk_start, "error": str(_e)[:120]})
+                    else:
+                        import time as _t; _t.sleep(2 * (_att + 1))
+            if r is None:
+                continue
             if r.status_code in (200, 201, 207):
                 try:
                     resp_items = r.json().get("items", [])
