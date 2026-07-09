@@ -1820,19 +1820,28 @@ def create_system_and_dataset(
 
     # Create (or find existing) Dataset, always parented under the system
     dataset_id: str | None = None
-    ds_hits   = _cdgc_search(dataset_name, class_type="DataSet", size=5)
-    ds_exact  = [h for h in ds_hits if _name_of(h).lower() == dataset_name.lower()]
-    if ds_exact:
-        dataset_id = _id_of(ds_exact[0])
+    # Reliable dedup: match an existing dataset by exact name among the SYSTEM's
+    # children (hierarchy is authoritative; keyword search lags for fresh assets
+    # and caused duplicate datasets on re-runs).
+    if system_id:
+        try:
+            _hier = _cdgc_get_asset(system_id, segments="summary,hierarchy").get("hierarchy") or []
+            if isinstance(_hier, dict):
+                _hier = _hier.get("children") or _hier.get("items") or []
+            for _h in _hier:
+                _nm = (_h.get("summary") or {}).get("core.name") or _name_of(_h)
+                if _nm and _nm.lower() == dataset_name.lower():
+                    dataset_id = _id_of(_h)
+                    break
+        except Exception:
+            pass
+    if not dataset_id:  # fallback to search
+        ds_exact = [h for h in _cdgc_search(dataset_name, class_type="DataSet", size=5)
+                    if _name_of(h).lower() == dataset_name.lower()]
+        if ds_exact:
+            dataset_id = _id_of(ds_exact[0])
+    if dataset_id:
         results["dataset"] = {"id": dataset_id, "name": dataset_name, "note": "already exists"}
-        # Re-parent to the system if the system was just resolved/created
-        if system_id:
-            try:
-                url = f"{CDGC_API_BASE}/data360/content/v1/assets/{dataset_id}"
-                _request_cdgc("PATCH", url, json={"parent": {"core.identity": system_id}})
-                results["dataset"]["reparented_to"] = system_id
-            except Exception as e:
-                results["dataset"]["reparent_error"] = str(e)
     else:
         try:
             resp = _cdgc_create_asset(
@@ -1861,7 +1870,9 @@ def create_system_and_dataset(
                     "toIdentity":   tid,
                     "operation":    "INSERT",
                     "type":         "com.infa.ccgf.models.governance.asscDataSetDataElement",
-                    "identityType": "INTERNAL",
+                    # Auto-detect: external column ref ("<origin>://...") vs internal UUID.
+                    "sourceIdentityType": "INTERNAL",
+                    "targetIdentityType": "EXTERNAL" if "://" in str(tid) else "INTERNAL",
                     "attributes":   {},
                 }
                 for tid in chunk

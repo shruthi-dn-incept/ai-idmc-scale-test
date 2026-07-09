@@ -171,15 +171,44 @@ def domain():
 
 
 # ── phase 5: system + datasets ──────────────────────────────────────────────
+_COL_CLASS = "com.infa.odin.models.relational.Column"
+
+
+def _dq_column_refs(schema):
+    """External ids of the DQ'd (potential) columns for a schema (same selection as DQROs)."""
+    from idmc_governance.scale.generate_dqro import select_key_columns
+    refs = []
+    for cf in glob.glob(f".scan_cache/GOVERNANCE_SCALE_TEST_{schema}*.json"):
+        d = json.load(open(cf))
+        ext = d.get("external_id", "")
+        if "~" not in ext:
+            continue
+        base = ext.split("~")[0]
+        for col in select_key_columns(
+                [c for c in d.get("columns", []) if not (c.get("name") or "").startswith("SYS_")],
+                max_cols=MAX_COLS):
+            refs.append(f'{base}/{col["name"]}~{_COL_CLASS}')
+    return refs
+
+
 def system_ds():
-    out = {}
+    # Links dataset -> its schema's DQ'd columns via the SHARED create_system_and_dataset
+    # linkage (same code path the UI uses); external ids are auto-detected there.
+    out, links = {}, {}
     for sch in SCHEMAS:
         ds = sch.replace("GOVTEST_", "").title() + " Dataset"
+        refs = _dq_column_refs(sch)
         r = aim.create_system_and_dataset(system_name=ORIGIN, dataset_name=ds,
-                                          description=f"{sch} dataset", domain_name="Healthcare")
-        out[sch] = (r.get("dataset") or {}).get("id", "")
+                                          description=f"{sch} dataset", domain_name="Healthcare",
+                                          table_ids=refs or None)
+        dsid = (r.get("dataset") or {}).get("id", "")
+        out[sch] = dsid
+        de = r.get("data_elements") or {}
+        linked = len(de.get("linked", [])) if isinstance(de, dict) else 0
+        links[sch] = {"dq_columns": len(refs), "linked": linked}
+        print(f"  {sch}: dataset={str(dsid)[:12]} linked {linked}/{len(refs)} DQ columns")
     json.dump(out, open(str(STATE_DIR / "system_dataset.json"), "w"), indent=1)
-    return {"system": 1, "datasets": len([v for v in out.values() if v])}
+    return {"system": 1, "datasets": len([v for v in out.values() if v]), "links": links}
 
 
 # ── phase 5b: rule map (rule-spec ids per dimension -> state/rule_map.json) ──
