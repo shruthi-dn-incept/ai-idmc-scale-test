@@ -1,0 +1,400 @@
+﻿2026-07-09 09:08:37,405 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:08:57,814 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:09:18,198 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:09:38,691 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:09:59,064 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:10:19,541 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+2026-07-09 09:10:39,917 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:11:00,346 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:11:20,744 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+2026-07-09 09:11:41,192 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:12:01,664 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:12:22,116 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:12:42,543 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:13:03,062 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+2026-07-09 09:13:23,499 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:13:43,928 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:14:04,387 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:14:24,780 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+2026-07-09 09:14:45,233 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:15:05,707 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+2026-07-09 09:15:26,107 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:15:46,525 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+2026-07-09 09:16:06,999 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:16:27,415 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:16:47,814 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:17:08,248 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:17:28,666 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:17:49,173 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:18:09,654 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+2026-07-09 09:18:30,048 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:18:50,467 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+2026-07-09 09:19:10,872 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:19:31,326 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: RUNNING
+2026-07-09 09:19:51,740 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+=== import_dqro done in 1352.9s ===
+    $ /usr/local/bin/python -m idmc_governance.scale.curate --batch 50 --workers 14
+  job a4d9a77e-402e-4f22-9de5-9f3a3be62a13: COMPLETED
+2026-07-09 09:20:12,193 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/observable/v1/jobs/a4d9a77e-402e-4f22-9de5-9f3a3be62a13 "HTTP/1.1 200 OK"
+
+=== PHASE curate ===
+=== PHASE scan ===
+FileNotFoundError: [Errno 2] No such file or directory: '/app/state/colterm_map.json'
+  File "<frozen runpy>", line 198, in _run_module_as_main
+    PHASE curate ERROR: step failed (1): /usr/local/bin/python -m idmc_governance.scale.curate --batch 50 --workers 14
+  File "<frozen runpy>", line 88, in _run_code
+  File "/app/src/idmc_governance/scale/curate.py", line 115, in <module>
+  File "/app/src/idmc_governance/scale/curate.py", line 57, in main
+    colterm = json.load(open(str(STATE_DIR / "colterm_map.json")))
+
+    main()
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+=== curate done in 0.6s ===
+Traceback (most recent call last):
+2026-07-09 09:20:13,741 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=CatalogSource&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:14,182 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=GOVTEST&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:13,283 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Resource&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:14,648 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Databricks&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:15,115 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=ADLS&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:15,555 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=S3&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:15,988 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Snowflake&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:16,863 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Informatica&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:16,428 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=IICS&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:17,337 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=DQ_&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:18,238 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=GCP&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:17,774 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Azure&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:18,702 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Oracle&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:19,188 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Salesforce&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:19,782 INFO ai_governance: _resolve_mcc_source_id: matched by name 'govtest_claims'  id=bb607435-772e-3a5d-9843-67466dd6162f
+2026-07-09 09:20:19,782 INFO ai_governance: _list_mcc_catalog_sources: 11 sources from https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsources
+2026-07-09 09:20:19,782 INFO ai_governance: run_mcc_scan: final trigger_id=bb607435-772e-3a5d-9843-67466dd6162f
+2026-07-09 09:20:19,770 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsources "HTTP/1.1 200 OK"
+2026-07-09 09:20:24,020 INFO httpx: HTTP Request: GET https://dmp-us.informaticacloud.com/identity-service/api/v1/jwt/Token?client_id=idmc_api&nonce=7B2B9470C52B4D0CBA59FB650C94F16A "HTTP/1.1 200 OK"
+2026-07-09 09:20:23,645 INFO ai_governance: _trigger_mcc_scan: caps=['Data Quality']  HTTP 201 {"jobId":"edb4ca5b-a41a-4d1c-9378-ffb3762ebcd5","trackingURI":"/data360/observable/v1/jobs/edb4ca5b-a41a-4d1c-9378-ffb3762ebcd5?expandChildren=TASK-HIERARCHY","status":"SUBMITTED","taskGroups":[{"groupId":"313925ad-1da0-4373-abc5-af7e6841a199","groupName":"dataquality","tasks":[{"taskId":"a4a647e7-8
+2026-07-09 09:20:23,645 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsource/bb607435-772e-3a5d-9843-67466dd6162f "HTTP/1.1 201 Created"
+2026-07-09 09:20:24,467 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Resource&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:24,979 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=CatalogSource&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:25,872 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Databricks&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:25,408 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=GOVTEST&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:26,801 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=S3&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:26,341 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=ADLS&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:27,264 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Snowflake&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:27,725 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=IICS&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:28,164 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Informatica&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:29,087 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Azure&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:28,614 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=DQ_&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:29,554 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=GCP&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:30,020 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Oracle&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:31,061 INFO ai_governance: _resolve_mcc_source_id: matched by name 'govtest_member'  id=29871493-4d8c-3e73-8942-618a8a262afb
+2026-07-09 09:20:31,061 INFO ai_governance: _list_mcc_catalog_sources: 11 sources from https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsources
+2026-07-09 09:20:31,056 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsources "HTTP/1.1 200 OK"
+2026-07-09 09:20:30,479 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Salesforce&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:31,062 INFO ai_governance: run_mcc_scan: final trigger_id=29871493-4d8c-3e73-8942-618a8a262afb
+2026-07-09 09:20:34,687 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsource/29871493-4d8c-3e73-8942-618a8a262afb "HTTP/1.1 201 Created"
+2026-07-09 09:20:35,193 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Resource&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:34,687 INFO ai_governance: _trigger_mcc_scan: caps=['Data Quality']  HTTP 201 {"jobId":"671af7e6-ae3e-47e4-8e79-f77c66d8d38b","trackingURI":"/data360/observable/v1/jobs/671af7e6-ae3e-47e4-8e79-f77c66d8d38b?expandChildren=TASK-HIERARCHY","status":"SUBMITTED","taskGroups":[{"groupId":"ada6e96d-e8c9-43c5-b94d-fbf6a1863735","groupName":"dataquality","tasks":[{"taskId":"3b00ec88-1
+2026-07-09 09:20:35,618 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=CatalogSource&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:36,051 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=GOVTEST&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:36,957 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=ADLS&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:36,518 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Databricks&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:37,853 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Snowflake&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:37,396 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=S3&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:39,224 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=DQ_&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:38,294 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=IICS&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:38,754 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Informatica&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:39,690 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Azure&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:40,165 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=GCP&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:41,077 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Salesforce&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:40,625 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Oracle&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:42,117 INFO ai_governance: _list_mcc_catalog_sources: 11 sources from https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsources
+2026-07-09 09:20:42,117 INFO ai_governance: run_mcc_scan: final trigger_id=2b9c71eb-ef0e-3175-8487-5ad8a39daf36
+2026-07-09 09:20:42,117 INFO ai_governance: _resolve_mcc_source_id: matched by name 'govtest_clinical'  id=2b9c71eb-ef0e-3175-8487-5ad8a39daf36
+2026-07-09 09:20:42,110 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsources "HTTP/1.1 200 OK"
+2026-07-09 09:20:44,758 INFO ai_governance: _trigger_mcc_scan: caps=['Data Quality']  HTTP 201 {"jobId":"a15ef9b5-93b4-43f1-b5bc-4f2e2610a448","trackingURI":"/data360/observable/v1/jobs/a15ef9b5-93b4-43f1-b5bc-4f2e2610a448?expandChildren=TASK-HIERARCHY","status":"SUBMITTED","taskGroups":[{"groupId":"c40a4994-7689-4741-8727-5c8769479aa8","groupName":"dataquality","tasks":[{"taskId":"e9ddd904-3
+2026-07-09 09:20:44,757 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsource/2b9c71eb-ef0e-3175-8487-5ad8a39daf36 "HTTP/1.1 201 Created"
+2026-07-09 09:20:45,249 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Resource&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:45,699 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=CatalogSource&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:46,155 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=GOVTEST&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:46,620 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Databricks&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:47,113 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=ADLS&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:48,007 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Snowflake&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:47,577 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=S3&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:48,469 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=IICS&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:48,910 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Informatica&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:49,354 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=DQ_&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:49,820 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Azure&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:50,299 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=GCP&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:51,215 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Salesforce&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:50,760 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Oracle&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:20:51,803 INFO ai_governance: _resolve_mcc_source_id: matched by name 'govtest_provider'  id=e2aafb8b-c513-3e06-88b9-4e7f984793dd
+2026-07-09 09:20:51,799 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsources "HTTP/1.1 200 OK"
+2026-07-09 09:20:51,803 INFO ai_governance: _list_mcc_catalog_sources: 11 sources from https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsources
+2026-07-09 09:20:51,803 INFO ai_governance: run_mcc_scan: final trigger_id=e2aafb8b-c513-3e06-88b9-4e7f984793dd
+2026-07-09 09:20:55,909 INFO snowflake.connector.connection: Snowflake Connector for Python Version: 4.6.0, Python Version: 3.11.15, Platform: Linux-6.6.139.1-1.azl3-x86_64-with-glibc2.41
+
+=== PHASE costs ===
+2026-07-09 09:20:55,580 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/executable/v1/catalogsource/e2aafb8b-c513-3e06-88b9-4e7f984793dd "HTTP/1.1 201 Created"
+2026-07-09 09:20:55,581 INFO ai_governance: _trigger_mcc_scan: caps=['Data Quality']  HTTP 201 {"jobId":"5bcc8e99-32a6-4aca-9abc-77d9a962f14a","trackingURI":"/data360/observable/v1/jobs/5bcc8e99-32a6-4aca-9abc-77d9a962f14a?expandChildren=TASK-HIERARCHY","status":"SUBMITTED","taskGroups":[{"groupId":"28f17e68-aa7a-4635-8ff6-2b5ef09e28e8","groupName":"dataquality","tasks":[{"taskId":"af698ff8-4
+=== scan done in 42.8s ===
+2026-07-09 09:20:55,910 INFO snowflake.connector.connection: Connecting to GLOBAL Snowflake domain
+ "colterm": 0.0,
+ "curate": 0.6,
+=== PIPELINE DONE in 1813s ===
+=== costs done in 5.5s ===
+ "import_dqro": 1352.9,
+ "system_ds": 12.2,
+
+ "domain": 0.0,
+ "rule_map": 1.3,
+ "scan": 42.8,
+ "extract": 170.8,
+ "costs": 5.5
+ "gen_dqro": 6.4,
+{
+}
+ "taxonomy": 220.3,
+=== pipeline entrypoint done ===
+=== run_scale_pipeline --skip taxonomy colterm domain rule_map gen_dqro import_dqro curate scan costs  ===
+=== SCALE PIPELINE start (clean=False) ===
+    $ /usr/local/bin/python -m idmc_governance.scale.extract_columns --workers 16
+=== materialized .env with 20 keys ===
+=== PHASE extract ===
+
+  3925/4000  ok=3925 err=0  30.5 tbl/s  eta 2s
+  3950/4000  ok=3950 err=0  30.5 tbl/s  eta 1s
+-- skip colterm
+
+  3975/4000  ok=3975 err=0  30.5 tbl/s  eta 0s
+  3775/4000  ok=3775 err=0  30.5 tbl/s  eta 7s
+  3900/4000  ok=3900 err=0  30.5 tbl/s  eta 3s
+2026-07-09 09:30:16,272 INFO ai_governance: _browse_all_tables_in_schema: GOVTEST_PROVIDER  1000 tables (cached)
+2026-07-09 09:30:11,466 INFO ai_governance: minted fresh v2 session (fH6RstO2)
+2026-07-09 09:30:12,987 INFO ai_governance: _browse_all_tables_in_schema: GOVTEST_CLINICAL  1000 tables (cached)
+2026-07-09 09:30:15,150 INFO ai_governance: _browse_all_tables_in_schema: GOVTEST_CLAIMS  1000 tables (cached)
+  3700/4000  ok=3700 err=0  30.5 tbl/s  eta 9s
+  3800/4000  ok=3800 err=0  30.5 tbl/s  eta 6s
+2026-07-09 09:29:49,201 INFO snowflake.connector.connection: Snowflake Connector for Python Version: 4.6.0, Python Version: 3.11.15, Platform: Linux-6.6.139.1-1.azl3-x86_64-with-glibc2.41
+-- skip domain
+  3850/4000  ok=3850 err=0  30.5 tbl/s  eta 4s
+
+2026-07-09 09:29:49,202 INFO snowflake.connector.connection: Connecting to GLOBAL Snowflake domain
+  3875/4000  ok=3875 err=0  30.5 tbl/s  eta 4s
+2026-07-09 09:30:14,064 INFO ai_governance: _browse_all_tables_in_schema: GOVTEST_MEMBER  1000 tables (cached)
+  4000/4000  ok=4000 err=0  30.5 tbl/s  eta 0s
+-- skip taxonomy
+=== PHASE system_ds ===
+  3725/4000  ok=3725 err=0  30.5 tbl/s  eta 9s
+DONE in 131s  tables_ok=4000  errors=0  total_columns_in_cache=135968
+  3750/4000  ok=3750 err=0  30.5 tbl/s  eta 8s
+  3825/4000  ok=3825 err=0  30.5 tbl/s  eta 5s
+=== extract done in 159.4s ===
+2026-07-09 09:32:28,445 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Healthcare&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:32:28,877 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=GOVERNANCE_SCALE_TEST&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:32:29,887 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Claims%20Dataset&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:32:29,371 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets/240140b0-b52a-4b02-abe2-f39c2cee31b7?scheme=internal&segments=summary,hierarchy "HTTP/1.1 200 OK"
+2026-07-09 09:32:35,113 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/content/v1/assets "HTTP/1.1 200 OK"
+2026-07-09 09:32:45,257 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:32:55,739 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:33:07,543 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:33:17,565 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:33:27,498 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:33:37,650 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:33:47,468 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:33:57,753 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:34:08,446 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:34:18,695 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:34:28,468 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:34:38,535 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:34:48,422 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:34:58,611 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:35:08,582 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:35:18,504 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:35:28,684 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:35:38,951 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:35:49,655 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:35:59,719 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 207 Multi-Status"
+2026-07-09 09:36:00,953 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:02,136 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:03,365 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:04,616 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:05,746 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:06,909 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:08,134 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:09,321 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:10,577 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:11,742 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:13,001 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:14,187 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:15,374 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:16,607 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:17,781 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:18,946 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:20,109 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:21,231 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:22,411 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:23,578 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:24,791 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:26,041 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:27,192 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:28,407 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:29,628 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:30,963 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:32,313 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:33,540 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:34,732 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:35,907 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:37,044 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:38,368 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:39,559 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:40,737 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:41,980 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:43,177 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:44,364 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:45,612 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:46,798 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:47,967 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:49,130 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:50,292 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:51,495 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:52,740 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:53,857 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:55,052 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:56,392 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:57,612 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:36:58,802 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:00,032 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:01,224 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:02,551 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:03,764 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:04,969 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:06,148 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:07,298 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:08,499 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:09,696 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:10,878 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:12,108 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:13,317 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:14,498 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:15,640 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:17,039 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:18,250 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:19,429 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:20,576 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:21,764 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:22,938 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:24,129 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:25,289 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:26,484 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:27,663 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:28,861 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:30,052 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:31,225 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:32,421 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:33,688 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:34,926 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:36,076 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:37,297 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:38,487 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:39,868 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:41,057 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:42,260 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:43,508 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:44,674 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:45,901 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:47,088 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:48,277 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:49,728 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:50,931 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:52,139 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:53,289 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:54,664 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:55,940 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:57,311 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:58,501 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:37:59,782 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:00,979 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:02,180 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:03,398 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:04,710 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:05,873 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:07,070 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:08,275 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:09,449 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:10,681 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:11,838 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:13,040 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:14,275 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:15,470 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:16,706 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:17,928 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:19,123 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:20,321 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:21,545 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:22,709 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:23,927 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:25,231 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:26,419 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:27,721 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:28,933 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:30,116 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:31,510 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:32,688 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:33,916 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:35,096 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:36,269 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:38,025 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Healthcare&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:38:37,461 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+  GOVTEST_CLAIMS: dataset=f8305171-c43 linked 400/3000 DQ columns
+2026-07-09 09:38:39,078 INFO httpx: HTTP Request: GET https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets/240140b0-b52a-4b02-abe2-f39c2cee31b7?scheme=internal&segments=summary,hierarchy "HTTP/1.1 200 OK"
+2026-07-09 09:38:38,486 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=GOVERNANCE_SCALE_TEST&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:38:39,527 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/search/v1/assets?knowledgeQuery=Member%20Dataset&segments=summary,systemAttributes "HTTP/1.1 200 OK"
+2026-07-09 09:38:44,309 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/data360/content/v1/assets "HTTP/1.1 200 OK"
+2026-07-09 09:38:45,495 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:46,730 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:48,076 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:49,242 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:50,420 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:51,618 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:52,876 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:54,018 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:55,204 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:56,381 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:57,542 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:38:58,857 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:39:00,020 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:39:01,154 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"
+2026-07-09 09:39:02,350 INFO httpx: HTTP Request: POST https://cdgc-api.dmp-us.informaticacloud.com/ccgf-contentv2/api/v1/publish "HTTP/1.1 429 Too Many Requests"

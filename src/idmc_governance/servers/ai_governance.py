@@ -257,13 +257,14 @@ def _cdgc_headers() -> dict[str, str]:
 
 def _request_cdgc(method: str, url: str, **kw) -> httpx.Response:
     kw.setdefault("timeout", 30)
-    r = httpx.request(method, url, headers=_cdgc_headers(), **kw)
+    extra = kw.pop("headers", None) or {}
+    r = httpx.request(method, url, headers={**_cdgc_headers(), **extra}, **kw)
     if r.status_code == 401:
         log.info("CDGC 401 — refreshing JWT and retrying")
         with _jwt_lock:
             _jwt_cache["token"] = None
             _jwt_cache["expires_at"] = 0.0
-        r = httpx.request(method, url, headers=_cdgc_headers(), **kw)
+        r = httpx.request(method, url, headers={**_cdgc_headers(), **extra}, **kw)
     if r.status_code >= 400:
         log.warning("CDGC %s %s -> %d BODY: %s", method, url.split("?")[0][-60:], r.status_code, r.text[:300])
     return r
@@ -1862,7 +1863,7 @@ def create_system_and_dataset(
         _LINK_BATCH = 20
         for chunk_start in range(0, len(table_ids), _LINK_BATCH):
             chunk = table_ids[chunk_start : chunk_start + _LINK_BATCH]
-            headers = {**_cdgc_headers(), "x-infa-product-id": "CDGC", "correlation-id": str(_uuid.uuid4())}
+            headers = {"x-infa-product-id": "CDGC", "correlation-id": str(_uuid.uuid4())}
             body = {"items": [
                 {
                     "elementType":  "RELATIONSHIP",
@@ -1877,7 +1878,7 @@ def create_system_and_dataset(
                 }
                 for tid in chunk
             ]}
-            r = httpx.post(url, headers=headers, json=body, timeout=30)
+            r = _request_cdgc("POST", url, json=body, headers=headers)  # auto 401-renew
             if r.status_code in (200, 201, 207):
                 try:
                     resp_items = r.json().get("items", [])
