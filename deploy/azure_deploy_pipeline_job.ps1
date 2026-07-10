@@ -38,7 +38,7 @@ if ($exists) { Write-Host "  deleting existing job..."; az containerapp job dele
 Write-Host "  creating job (replica-timeout 2h, 2 vCPU / 4Gi)..." -ForegroundColor Yellow
 az containerapp job create `
   --name $JOB --resource-group $RG --environment $ENVN `
-  --trigger-type Manual --replica-timeout 7200 --replica-retry-limit 0 `
+  --trigger-type Manual --replica-timeout 10800 --replica-retry-limit 0 `
   --image "$ACR_SERVER/$IMAGE" --cpu 2 --memory "4Gi" `
   --registry-server $ACR_SERVER --registry-username $ACR_USER --registry-password $ACR_PASS `
   --command "/bin/bash" --args "scripts/start_scale_pipeline.sh" `

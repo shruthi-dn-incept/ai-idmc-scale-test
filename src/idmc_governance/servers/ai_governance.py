@@ -1855,14 +1855,31 @@ def create_system_and_dataset(
             results["dataset"] = {"error": str(e), "name": dataset_name}
 
     # Link catalog assets as data elements on the dataset.
-    # CDGC limits propagation jobs to 20 per batch — chunk accordingly.
+    #
+    # Each publish enqueues ASYNC propagation jobs server-side; the tenant caps
+    # in-flight propagation jobs at 20 (shared across ALL callers, incl. DQ scans).
+    # A publish returns 207 in seconds but its propagation keeps churning after,
+    # so firing chunks back-to-back stacks jobs past the cap -> HTTP 429.
+    #
+    # We therefore SELF-THROTTLE with AIMD: pace publishes with a gap that widens
+    # on 429 and narrows after clean runs, back off with jitter (honoring
+    # Retry-After), and NEVER drop a chunk — re-queue it to the tail until a hard
+    # per-chunk attempt budget. RELATIONSHIP_ALREADY_EXISTS makes re-tries idempotent.
     if table_ids and dataset_id:
-        import uuid as _uuid
+        import uuid as _uuid, time as _t, random as _rand
+        from collections import deque as _deque
         linked, errors = [], []
         url = f"{CDGC_API_BASE}/ccgf-contentv2/api/v1/publish"
-        _LINK_BATCH = 20
-        for chunk_start in range(0, len(table_ids), _LINK_BATCH):
-            chunk = table_ids[chunk_start : chunk_start + _LINK_BATCH]
+        _LINK_BATCH = int(os.getenv("LINK_BATCH", "20"))  # relationships per publish (tune vs propagation cap)
+        _MAX_ATTEMPTS = 40          # per-chunk ceiling before giving up (loud error)
+        queue = _deque(
+            (cs, table_ids[cs : cs + _LINK_BATCH], 0)   # (chunk_start, items, attempts)
+            for cs in range(0, len(table_ids), _LINK_BATCH)
+        )
+        pace = 3.0                  # seconds between publishes, self-tuning
+        ok_streak = 0
+        while queue:
+            chunk_start, chunk, attempts = queue.popleft()
             headers = {"x-infa-product-id": "CDGC", "correlation-id": str(_uuid.uuid4())}
             body = {"items": [
                 {
@@ -1878,29 +1895,32 @@ def create_system_and_dataset(
                 }
                 for tid in chunk
             ]}
-            # Retry transient network errors AND CDGC 429 (propagation-job rate
-            # limit, cap 20 in-flight) with backoff so we respect the throttle.
-            import time as _t
-            r = None
-            for _att in range(10):
-                try:
-                    r = _request_cdgc("POST", url, json=body, headers=headers)  # auto 401-renew
-                except Exception as _e:
-                    if _att == 9:
-                        errors.append({"chunk_start": chunk_start, "error": str(_e)[:120]}); r = None
-                    else:
-                        _t.sleep(2 * (_att + 1))
-                    continue
-                if r.status_code == 429:  # propagation-job queue full — wait for drain
-                    r = None
-                    if _att == 9:
-                        errors.append({"chunk_start": chunk_start, "error": "429 rate limit"})
-                    else:
-                        _t.sleep(min(20, 4 * (_att + 1)))
-                    continue
-                break
-            if r is None:
+            _t.sleep(pace)          # pace BEFORE firing to cap our own in-flight jobs
+            try:
+                r = _request_cdgc("POST", url, json=body, headers=headers)  # auto 401-renew
+            except Exception as _e:                     # transient network error -> re-queue
+                if attempts + 1 >= _MAX_ATTEMPTS:
+                    errors.append({"chunk_start": chunk_start, "error": str(_e)[:120]})
+                else:
+                    _t.sleep(min(30.0, 2 ** min(attempts, 5)) + _rand.uniform(0, 1))
+                    queue.append((chunk_start, chunk, attempts + 1))
                 continue
+            if r.status_code == 429:                    # propagation queue full: widen + back off
+                pace = min(30.0, pace * 1.5)
+                ok_streak = 0
+                _ra = (r.headers.get("Retry-After") or "").strip()
+                wait = (float(_ra) if _ra.replace(".", "", 1).isdigit()
+                        else min(45.0, 2 ** min(attempts, 5)) + _rand.uniform(0, 2))
+                if attempts + 1 >= _MAX_ATTEMPTS:
+                    errors.append({"chunk_start": chunk_start, "error": "429 rate limit (exhausted)"})
+                else:
+                    _t.sleep(wait)
+                    queue.append((chunk_start, chunk, attempts + 1))   # re-queue, never drop
+                continue
+            # success path -> narrow pace after a clean streak
+            ok_streak += 1
+            if ok_streak >= 3 and pace > 1.5:
+                pace = max(1.5, pace * 0.8)
             if r.status_code in (200, 201, 207):
                 try:
                     resp_items = r.json().get("items", [])
