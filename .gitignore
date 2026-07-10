@@ -47,6 +47,8 @@ logs/
 state/
 # Generated bulk-import file (1.4 MB, regenerable); keep the source template tracked
 templates/CDGC_DQRO_FULL.xlsx
+# CDGC column export (7.2 MB data snapshot, regenerable via Export Assets) — not a template
+templates/CDGC_CURATE_DATASET.xlsx
 
 # Local secrets (RSA keys etc.)
 secrets/
