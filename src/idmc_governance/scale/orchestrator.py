@@ -242,11 +242,17 @@ def import_dqro():
 
 # ── phase 8: curate ─────────────────────────────────────────────────────────
 def curate():
-    out = _sh(f"{sys.executable} -m idmc_governance.scale.curate --batch 50 --workers 14")
-    m = re.search(r"DONE linked=(\d+) err=(\d+)", out)
-    mi = re.search(r"link_items=(\d+)", out)
-    return {"link_items": int(mi.group(1)) if mi else None,
-            "linked": int(m.group(1)) if m else None, "errors": int(m.group(2)) if m else None}
+    # Template/bulk-import path: build a "Technical Data element" file per schema
+    # (Business Dataset + Operation=Update) and bulk-import it. One managed job per
+    # schema, no propagation-cap 429s — vs the old publish linker (~0.4 batches/min,
+    # 429 storms). See idmc_governance.scale.curate_template.
+    from idmc_governance.scale import curate_template as ct
+    results = ct.run(SCHEMAS)
+    ok = [s for s, r in results.items()
+          if str(r.get("final_status", "")).upper() in {"COMPLETED", "SUCCESS", "SUCCEEDED"}]
+    return {"schemas_ok": len(ok), "schemas": len(SCHEMAS),
+            "rows": {s: r.get("rows") for s, r in results.items()},
+            "status": {s: r.get("final_status") or r.get("error") for s, r in results.items()}}
 
 
 # ── phase 9: trigger scans ──────────────────────────────────────────────────

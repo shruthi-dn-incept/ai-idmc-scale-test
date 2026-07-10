@@ -40,7 +40,15 @@ def _publish(items):
     for it in (r.json().get("items") if r.text else []) or []:
         code = int(it.get("statusCode") or 0)
         msg = it.get("messageCode") or ""
-        if code in (200, 201) or msg in ("CONTENT_SUCCESS", "RELATIONSHIP_ALREADY_EXISTS"):
+        # An already-existing link is a success on re-runs (idempotent). CDGC reports
+        # it as top-level CONTENT_FAILED/403 with the real code nested in validations,
+        # so check both places or re-runs miscount every existing link as an error.
+        nested = {res.get("messageCode")
+                  for v in (it.get("validations") or [])
+                  for res in (v.get("results") or [])}
+        if (code in (200, 201)
+                or msg in ("CONTENT_SUCCESS", "RELATIONSHIP_ALREADY_EXISTS")
+                or "RELATIONSHIP_ALREADY_EXISTS" in nested):
             ok += 1
         else:
             err += 1
