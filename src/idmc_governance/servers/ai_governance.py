@@ -315,13 +315,17 @@ def _llm_call(system_prompt: str, user_msg: str, temperature: float = 0.2,
 
     chosen = model or _MODEL_FAST
     client = anthropic.Anthropic(api_key=api_key)
-    msg = client.messages.create(
+    # Stream: at _LLM_MAX_TOKENS=32000 the SDK rejects non-streaming messages.create
+    # ("Streaming is required for operations that may take longer than 10 minutes").
+    # messages.stream accumulates the same result and works for any max_tokens.
+    with client.messages.stream(
         model=chosen,
         max_tokens=_LLM_MAX_TOKENS,
         temperature=temperature,
         system=system_prompt,
         messages=[{"role": "user", "content": user_msg}],
-    )
+    ) as stream:
+        msg = stream.get_final_message()
     return msg.content[0].text
 
 
