@@ -192,23 +192,23 @@ def _dq_column_refs(schema):
 
 
 def system_ds():
-    # Links dataset -> its schema's DQ'd columns via the SHARED create_system_and_dataset
-    # linkage (same code path the UI uses); external ids are auto-detected there.
-    out, links = {}, {}
+    # Create the System + one Dataset per schema (STRUCTURE ONLY). Column->dataset
+    # linking is deferred to the curate phase, which uses the fast bulk-import path
+    # (curate_template). Passing table_ids here would link via the publish linker,
+    # which hits the propagation-cap 429s (~0.4 batches/min) — redundant + slow now
+    # that curate does the same linking in one managed job per schema.
+    out = {}
     for sch in SCHEMAS:
         ds = sch.replace("GOVTEST_", "").title() + " Dataset"
-        refs = _dq_column_refs(sch)
         r = aim.create_system_and_dataset(system_name=ORIGIN, dataset_name=ds,
                                           description=f"{sch} dataset", domain_name="Healthcare",
-                                          table_ids=refs or None)
+                                          table_ids=None)
         dsid = (r.get("dataset") or {}).get("id", "")
         out[sch] = dsid
-        de = r.get("data_elements") or {}
-        linked = len(de.get("linked", [])) if isinstance(de, dict) else 0
-        links[sch] = {"dq_columns": len(refs), "linked": linked}
-        print(f"  {sch}: dataset={str(dsid)[:12]} linked {linked}/{len(refs)} DQ columns")
+        print(f"  {sch}: dataset={str(dsid)[:12]} (structure only; linking deferred to curate)")
     json.dump(out, open(str(STATE_DIR / "system_dataset.json"), "w"), indent=1)
-    return {"system": 1, "datasets": len([v for v in out.values() if v]), "links": links}
+    return {"system": 1, "datasets": len([v for v in out.values() if v]),
+            "note": "columns linked in curate phase (bulk import)"}
 
 
 # ── phase 5b: rule map (rule-spec ids per dimension -> state/rule_map.json) ──
