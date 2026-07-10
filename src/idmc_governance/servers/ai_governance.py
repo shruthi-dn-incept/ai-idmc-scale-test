@@ -294,6 +294,13 @@ def _request_v3(method: str, path_or_url: str, **kw) -> httpx.Response:
 _MODEL_FAST   = "claude-haiku-4-5-20251001"   # routing + taxonomy — speed priority
 _MODEL_QUALITY = "claude-sonnet-4-6"           # curate / complex reasoning — quality priority
 
+# Output cap for LLM calls. The whole-catalog taxonomy emits ~100 business terms
+# with definitions + synonyms in a single JSON response (~9-10K tokens), which
+# silently truncated at the old 8192 cap -> invalid JSON. Sonnet supports far
+# more; 32000 leaves ample headroom. Overridable via LLM_MAX_TOKENS.
+_LLM_MAX_TOKENS = int(os.environ.get("LLM_MAX_TOKENS", "32000"))
+
+
 def _llm_call(system_prompt: str, user_msg: str, temperature: float = 0.2,
               model: str | None = None) -> str:
     """Call Claude. model defaults to _MODEL_FAST (Haiku). Returns raw text response."""
@@ -310,7 +317,7 @@ def _llm_call(system_prompt: str, user_msg: str, temperature: float = 0.2,
     client = anthropic.Anthropic(api_key=api_key)
     msg = client.messages.create(
         model=chosen,
-        max_tokens=8192,
+        max_tokens=_LLM_MAX_TOKENS,
         temperature=temperature,
         system=system_prompt,
         messages=[{"role": "user", "content": user_msg}],
@@ -335,7 +342,11 @@ def _clean_json_text(text: str) -> str:
 
 
 def _llm_json(system_prompt: str, user_msg: str, model: str | None = None) -> Any:
-    """Call LLM and parse the response as JSON. Retries once on parse failure."""
+    """Call LLM and parse the response as JSON. Retries once on parse failure.
+
+    Raises a clear RuntimeError (not a bare JSONDecodeError) if both attempts fail
+    — usually a sign the response was truncated at the token cap (raise LLM_MAX_TOKENS).
+    """
     raw = _llm_call(system_prompt + "\n\nAlways respond with valid JSON only.", user_msg, model=model)
     text = _clean_json_text(raw)
     try:
@@ -344,7 +355,15 @@ def _llm_json(system_prompt: str, user_msg: str, model: str | None = None) -> An
         fix_prompt = f"The following is not valid JSON. Return ONLY valid JSON:\n\n{raw}"
         raw2 = _llm_call("You are a JSON formatter. Return only valid JSON.", fix_prompt, model=model)
         text2 = _clean_json_text(raw2)
-        return json.loads(text2)
+        try:
+            return json.loads(text2)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(
+                f"_llm_json: response was not valid JSON after one repair attempt "
+                f"(likely truncated at the {_LLM_MAX_TOKENS}-token cap — raise LLM_MAX_TOKENS). "
+                f"Parse error: {e}. Response length: initial={len(raw)} chars, repair={len(raw2)} chars. "
+                f"Tail of repair attempt: ...{text2[-200:]!r}"
+            ) from e
 
 
 # ---------------------------------------------------------------------------
