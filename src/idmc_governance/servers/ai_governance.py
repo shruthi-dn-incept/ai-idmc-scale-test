@@ -1556,9 +1556,19 @@ glossary taxonomy in JSON. Rules:
         "term_count":     total_terms,
         "tables_processed": len(tables_summary),
     }
-    # Persist to govern state so downstream steps (domain_structure, curate) can read it
-    state = _load_govern_state()
+    # Persist to govern state so downstream steps (domain_structure, curate) can read it.
+    # Pin to the slot keyed by the tables this taxonomy was generated from — NOT the
+    # global _active pointer, which may have drifted to another table (a prior scan, a
+    # separate browser action). Loading _active here is what let Step 3 write the taxonomy
+    # into one table's slot while Step 4 (domain_structure) read a different, empty slot
+    # and silently reported "0 created". Selecting the slot explicitly and re-activating it
+    # keeps Steps 4-5 pinned to the table the user just processed.
+    slot_names = table_names or [t.get("name") for t in table_metadata if t.get("name")]
+    slot_key   = _table_key(slot_names) if slot_names else None
+    state = _load_govern_state(key=slot_key) if slot_key is not None else _load_govern_state()
     state["taxonomy"] = result
+    if slot_names:
+        state["table_names"] = slot_names   # ensures _save_govern_state targets + activates this slot
     _save_govern_state(state)
     return result
 
