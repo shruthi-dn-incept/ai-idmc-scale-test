@@ -77,32 +77,90 @@ def _save_stats():
 
 
 # ── phase 0: cleanup ────────────────────────────────────────────────────────
-def _delete_asset(aid):
+# CDGC deletes must target core.externalId (DQO-/BT-/SDOM-/DOM-/DS-…) WITH the
+# X-INFA-PRODUCT-ID:CDGC header. The old path deleted by core.identity (UUID) → 404,
+# so --clean never actually purged and assets accumulated across every run.
+_PROD_HDR = {"X-INFA-PRODUCT-ID": "CDGC"}
+_GOV_CLASSES = {
+    "BusinessTerm": "com.infa.ccgf.models.governance.BusinessTerm",
+    "SubDomain":    "com.infa.ccgf.models.governance.SubDomain",
+    "Domain":       "com.infa.ccgf.models.governance.Domain",
+    "DataSet":      "com.infa.ccgf.models.governance.DataSet",
+}
+
+
+def _ext_of(h):
+    sa = h.get("systemAttributes") or {}
+    return h.get("core.externalId") or sa.get("core.externalId") or ""
+
+
+def _delete_asset(ext_id):
+    """Delete one asset by core.externalId. 201 (with a 'deleted' messageCode) = success."""
+    if not ext_id:
+        return False
     try:
-        r = gem._request_cdgc("DELETE", f"{gem.CDGC_API_BASE}/data360/content/v1/assets/{aid}")
-        return r.status_code in (200, 202, 204)
+        r = gem._request_cdgc(
+            "DELETE",
+            f"{gem.CDGC_API_BASE}/data360/content/v1/assets/{ext_id}",
+            headers=_PROD_HDR,
+        )
+        return r.status_code in (200, 201, 202, 204)
     except Exception:
         return False
 
 
+def _list_externalids(class_type, max_results=40000):
+    """All core.externalIds of a class via server-side filterSpec — avoids the
+    relevance-keyword miss (e.g. 'BusinessTerm' matches no term names) and the
+    10k wildcard deep-pagination cap (filtered result sets stay well under it)."""
+    url = (f"{gem.CDGC_API_BASE}/data360/search/v1/assets"
+           f"?knowledgeQuery=*&segments=summary,systemAttributes")
+    out, seen, offset, page = [], set(), 0, 100
+    while len(out) < max_results:
+        body = {"from": offset, "size": page,
+                "filterSpec": [{"type": "simple", "attribute": "core.classType",
+                                "values": [class_type]}]}
+        r = gem._request_cdgc("POST", url, json=body)
+        if r.status_code >= 400:
+            break
+        hits = (r.json() or {}).get("hits", [])
+        if isinstance(hits, dict):
+            hits = hits.get("hits", [])
+        if not hits:
+            break
+        for h in hits:
+            eid = _ext_of(h)
+            if eid and eid not in seen:
+                seen.add(eid)
+                out.append(eid)
+        if len(hits) < page:
+            break
+        offset += page
+    return out
+
+
+def _delete_many(ext_ids, workers=10):
+    if not ext_ids:
+        return 0
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        return sum(1 for ok in ex.map(_delete_asset, ext_ids) if ok)
+
+
 def clean(structure=False):
-    # Delete prior DQ_* rule occurrences (the only assets that duplicate on re-run)
-    hits = aim._cdgc_search_paged("DQ_", max_results=40000)
-    dqros = [aim._id_of(h) for h in hits
-             if (aim._name_of(h) or "").startswith("DQ_")
-             and "RuleInstance" in ((h.get("systemAttributes") or {}).get("core.classType") or "")]
-    deleted = 0
-    with ThreadPoolExecutor(max_workers=12) as ex:
-        for ok in ex.map(_delete_asset, dqros):
-            deleted += 1 if ok else 0
-    out = {"dqros_found": len(dqros), "dqros_deleted": deleted}
+    # DQ_* rule instances always (they duplicate every run). All named DQ_* and
+    # under 10k, so the keyword search is reliable here.
+    dq = [_ext_of(h) for h in aim._cdgc_search_paged("DQ_", max_results=40000)
+          if (aim._name_of(h) or "").startswith("DQ_")
+          and "RuleInstance" in ((h.get("systemAttributes") or {}).get("core.classType") or "")]
+    out = {"dqros_found": len(dq), "dqros_deleted": _delete_many(dq, workers=12)}
     if structure:
-        struct = []
-        for cls in ("BusinessTerm", "SubDomain", "DataSet", "System"):
-            for h in aim._cdgc_search_paged(cls, class_type=cls, max_results=500):
-                struct.append(aim._id_of(h))
-        sdel = sum(1 for ok in ThreadPoolExecutor(max_workers=8).map(_delete_asset, struct) if ok)
-        out["structure_deleted"] = sdel
+        # children-first so a parent isn't blocked by a live child link. System is
+        # deliberately NOT purged — those are catalog source systems the scan needs.
+        for label in ("BusinessTerm", "SubDomain", "Domain", "DataSet"):
+            ids = _list_externalids(_GOV_CLASSES[label])
+            out[f"{label}_found"] = len(ids)
+            out[f"{label}_deleted"] = _delete_many(ids, workers=8)
+            print(f"  clean {label}: found {len(ids)}, deleted {out[f'{label}_deleted']}")
     return out
 
 
