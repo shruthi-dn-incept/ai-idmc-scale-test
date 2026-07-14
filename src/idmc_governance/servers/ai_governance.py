@@ -45,7 +45,12 @@ from mcp.server.fastmcp import FastMCP
 # ---------------------------------------------------------------------------
 # Paths & constants
 # ---------------------------------------------------------------------------
-from idmc_governance.common.paths import ENV_PATH, SCAN_CACHE_DIR  # repo-root paths (src-layout safe)
+from idmc_governance.common.paths import ENV_PATH, SCAN_CACHE_DIR, load_env_file  # repo-root paths (src-layout safe)
+# Load repo-root .env into os.environ BEFORE the module constants below read it,
+# so IDMC_IDENTITY_HOST / CDGC_API_BASE / CDMP_API_BASE resolve to the configured
+# hosts (not the dm-us defaults) even when launched outside Docker. Process-env
+# exports still take precedence.
+load_env_file()
 SCRIPT_DIR  = Path(__file__).resolve().parent
 SCAN_CACHE_TTL      = int(os.getenv("SCAN_CACHE_TTL_SECONDS", str(3600)))  # 1 hour
 SCAN_THREAD_WORKERS = int(os.getenv("SCAN_THREAD_WORKERS", "20"))  # parallel column fetches

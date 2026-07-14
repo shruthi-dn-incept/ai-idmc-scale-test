@@ -45,7 +45,8 @@ from mcp.server.fastmcp import FastMCP
 # Paths & constants
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = Path(__file__).resolve().parent
-from idmc_governance.common.paths import ENV_PATH, REPO_ROOT  # repo-root paths (src-layout safe)
+from idmc_governance.common.paths import ENV_PATH, REPO_ROOT, load_env_file  # repo-root paths (src-layout safe)
+load_env_file()  # load repo-root .env into os.environ before the constants below read it
 ALERTS_PATH = REPO_ROOT / ".dq_monitor_alerts.json"
 
 CDGC_API_BASE = os.getenv("CDGC_API_BASE", "https://cdgc-api.dmp-us.informaticacloud.com")

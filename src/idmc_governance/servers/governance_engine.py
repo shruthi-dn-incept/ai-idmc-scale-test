@@ -36,7 +36,8 @@ from mcp.server.fastmcp import FastMCP
 # ---------------------------------------------------------------------------
 # Paths & constants
 # ---------------------------------------------------------------------------
-from idmc_governance.common.paths import ENV_PATH, REPO_ROOT  # repo-root paths (src-layout safe)
+from idmc_governance.common.paths import ENV_PATH, REPO_ROOT, load_env_file  # repo-root paths (src-layout safe)
+load_env_file()  # load repo-root .env into os.environ before the constants below read it
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 _FRS_HOST  = os.getenv("IDMC_FRS_HOST", "")

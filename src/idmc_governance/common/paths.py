@@ -22,6 +22,28 @@ def _find_repo_root() -> Path:
 
 REPO_ROOT = _find_repo_root()
 ENV_PATH = REPO_ROOT / ".env"
+
+
+def load_env_file(path: Path = ENV_PATH, *, override: bool = False) -> None:
+    """Populate os.environ from a KEY=VALUE .env file.
+
+    Module-level constants like CDGC_API_BASE / IDMC_IDENTITY_HOST are read via
+    os.getenv() at import time, so the .env must be in os.environ *before* those
+    lines run or they fall back to (wrong) defaults. Existing process-env values
+    win unless override=True, keeping Docker/shell exports authoritative.
+    """
+    if not path.exists():
+        return
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k, v = k.strip(), v.strip().rstrip("\r")
+        if override or k not in os.environ:
+            os.environ[k] = v
+
+
 SCAN_CACHE_DIR = Path(os.getenv("SCAN_CACHE_DIR", str(REPO_ROOT / ".scan_cache")))
 
 # Runtime-generated pipeline state (gitignored): taxonomy, maps, stats, job ids.
