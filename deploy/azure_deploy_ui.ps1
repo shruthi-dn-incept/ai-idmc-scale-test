@@ -86,6 +86,7 @@ az containerapp create `
   --registry-password $ACR_PASS `
   --env-vars `
     "IDMC_USER=$($env_vars['IDMC_USER'])" `
+    "IDMC_PASS=secretref:idmc-pass" `
     "IDMC_LOGIN_HOST=$($env_vars['IDMC_LOGIN_HOST'])" `
     "IDMC_FRS_HOST=$($env_vars['IDMC_FRS_HOST'])" `
     "IDMC_DQ_HOST=$($env_vars['IDMC_DQ_HOST'])" `
