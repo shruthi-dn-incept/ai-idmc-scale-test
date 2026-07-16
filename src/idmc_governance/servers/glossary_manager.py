@@ -38,7 +38,8 @@ from mcp.server.fastmcp import FastMCP
 # Paths & constants
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = Path(__file__).resolve().parent
-from idmc_governance.common.paths import ENV_PATH  # repo-root .env (src-layout safe)
+from idmc_governance.common.paths import ENV_PATH, load_env_file  # repo-root .env (src-layout safe)
+load_env_file()  # load repo-root .env into os.environ before the constants below read it
 
 # CDGC content + search APIs. Published docs use `idmc-api.dm-us` but this
 # tenant exposes `cdgc-api.dmp-us`. Override via env if needed.

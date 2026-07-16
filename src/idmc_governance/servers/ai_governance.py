@@ -45,7 +45,12 @@ from mcp.server.fastmcp import FastMCP
 # ---------------------------------------------------------------------------
 # Paths & constants
 # ---------------------------------------------------------------------------
-from idmc_governance.common.paths import ENV_PATH, SCAN_CACHE_DIR  # repo-root paths (src-layout safe)
+from idmc_governance.common.paths import ENV_PATH, SCAN_CACHE_DIR, load_env_file  # repo-root paths (src-layout safe)
+# Load repo-root .env into os.environ BEFORE the module constants below read it,
+# so IDMC_IDENTITY_HOST / CDGC_API_BASE / CDMP_API_BASE resolve to the configured
+# hosts (not the dm-us defaults) even when launched outside Docker. Process-env
+# exports still take precedence.
+load_env_file()
 SCRIPT_DIR  = Path(__file__).resolve().parent
 SCAN_CACHE_TTL      = int(os.getenv("SCAN_CACHE_TTL_SECONDS", str(3600)))  # 1 hour
 SCAN_THREAD_WORKERS = int(os.getenv("SCAN_THREAD_WORKERS", "20"))  # parallel column fetches
@@ -1556,9 +1561,19 @@ glossary taxonomy in JSON. Rules:
         "term_count":     total_terms,
         "tables_processed": len(tables_summary),
     }
-    # Persist to govern state so downstream steps (domain_structure, curate) can read it
-    state = _load_govern_state()
+    # Persist to govern state so downstream steps (domain_structure, curate) can read it.
+    # Pin to the slot keyed by the tables this taxonomy was generated from — NOT the
+    # global _active pointer, which may have drifted to another table (a prior scan, a
+    # separate browser action). Loading _active here is what let Step 3 write the taxonomy
+    # into one table's slot while Step 4 (domain_structure) read a different, empty slot
+    # and silently reported "0 created". Selecting the slot explicitly and re-activating it
+    # keeps Steps 4-5 pinned to the table the user just processed.
+    slot_names = table_names or [t.get("name") for t in table_metadata if t.get("name")]
+    slot_key   = _table_key(slot_names) if slot_names else None
+    state = _load_govern_state(key=slot_key) if slot_key is not None else _load_govern_state()
     state["taxonomy"] = result
+    if slot_names:
+        state["table_names"] = slot_names   # ensures _save_govern_state targets + activates this slot
     _save_govern_state(state)
     return result
 

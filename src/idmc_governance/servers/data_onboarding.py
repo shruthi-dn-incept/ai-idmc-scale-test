@@ -54,7 +54,8 @@ from mcp.server.fastmcp import FastMCP
 # Paths & constants
 # ---------------------------------------------------------------------------
 SCRIPT_DIR = Path(__file__).resolve().parent
-from idmc_governance.common.paths import ENV_PATH  # repo-root .env (src-layout safe)
+from idmc_governance.common.paths import ENV_PATH, load_env_file  # repo-root .env (src-layout safe)
+load_env_file()  # load repo-root .env into os.environ before the constants below read it
 
 CDGC_API_BASE = os.getenv("CDGC_API_BASE", "https://cdgc-api.dmp-us.informaticacloud.com")
 DEFAULT_ORG_ID = os.getenv("IDMC_ORG_ID")
