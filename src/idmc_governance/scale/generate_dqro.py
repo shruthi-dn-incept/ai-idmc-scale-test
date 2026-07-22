@@ -64,6 +64,10 @@ def main():
     ap.add_argument("--origin-filter", default=None,
                     help="Only include cache tables whose external_id contains this "
                          "substring (e.g. GOVERNANCE_SCALE_TEST) to exclude stale cache")
+    ap.add_argument("--schemas", nargs="*", default=[],
+                    help="DB-agnostic alternative to --origin-filter: only include cache "
+                         "tables whose external_id SCHEMA segment is in this list. Preferred "
+                         "— works for any source database, not just one whose name matches.")
     ap.add_argument("--operation", default="Create", choices=["Create", "Delete", "Update"],
                     help="CDGC bulk-import Operation column value (default Create)")
     args = ap.parse_args()
@@ -87,12 +91,19 @@ def main():
     if args.limit_tables:
         files = files[:args.limit_tables]
     n = 0
+    want_schemas = {s.upper() for s in args.schemas}
     for cf in files:
         d = json.load(open(cf))
         ext = d.get("external_id", "")
-        if "~" not in ext:
+        if "~" not in ext or "://" not in ext:
             continue
-        if args.origin_filter and args.origin_filter not in ext:
+        # Prefer DB-agnostic schema-segment matching; fall back to substring origin-filter.
+        if want_schemas:
+            _parts = ext.split("://", 1)[1].split("~")[0].split("/")
+            _sch = _parts[1] if len(_parts) > 1 else ""
+            if _sch.upper() not in want_schemas:
+                continue
+        elif args.origin_filter and args.origin_filter not in ext:
             continue
         base = ext.split("~")[0]          # origin://DB/SCHEMA/TABLE
         table = d.get("name", "")

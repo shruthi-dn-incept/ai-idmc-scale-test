@@ -289,8 +289,8 @@ def rule_map():
 
 # ── phase 6: generate DQRO file ─────────────────────────────────────────────
 def gen_dqro():
-    out = _sh(f"{sys.executable} -m idmc_governance.scale.generate_dqro --origin-filter {ORIGIN} "
-              f"--max-cols {MAX_COLS} --out {DQRO_FILE}")
+    out = _sh(f"{sys.executable} -m idmc_governance.scale.generate_dqro "
+              f"--schemas {' '.join(SCHEMAS)} --max-cols {MAX_COLS} --out {DQRO_FILE}")
     m = re.search(r"wrote (\d+) DQRO rows", out)
     return {"dqro_rows": int(m.group(1)) if m else None}
 
