@@ -5,8 +5,8 @@
 # Usage:  .\deploy\azure_deploy_pipeline_job.ps1 [pipelineArgs]
 #   pipelineArgs: passed to the orchestrator (default "--clean")
 param(
-    [string]$PipelineArgs    = "--clean",
-    [string]$PipelineSchemas = ""   # comma-separated; empty = orchestrator default (original 4)
+    [string]$PipelineArgs    = "",   # e.g. "--discover" or "--skip scan"; cleanup phase was removed
+    [string]$PipelineSchemas = ""    # comma-separated; empty = orchestrator default (original 4)
 )
 
 $ErrorActionPreference = "Continue"

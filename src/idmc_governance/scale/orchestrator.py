@@ -4,22 +4,26 @@ full catalog and collects per-phase stats. Designed to run as ONE Azure ACA job
 (all steps execute in-container; CDGC/Snowflake/agent reached over the network).
 
 Phases (each timed into stats.json):
-  0  cleanup       (optional --clean)  delete prior DQROs [+ --clean-structure for the 63 assets]
   1  extract       CDGC hierarchy + Snowflake types -> .scan_cache
   2  taxonomy      whole-catalog LLM glossary -> taxonomy.json
-  3  colterm       108 unique cols -> term names -> colterm_map.json
+  3  colterm       unique cols -> term names -> colterm_map.json
   4  domain        create Domain + SubDomains + Business Terms; resolve term_ids.json
   5  system_ds     1 System + N Datasets (per schema)
   6  gen_dqro      generate CDGC_DQRO_FULL.xlsx
   7  import_dqro   3-step bulk import (validate -> submit -> poll)
-  8  curate        publish ~136k column->term links
+  8  curate        link columns -> business Data Set
   9  scan          trigger MCC Data Quality scan on all sources
   10 stats         Snowflake credits + write stats.json + results doc
 
+There is deliberately no cleanup phase. Scoped teardown is done with a
+delete-operation bulk-import file (generate_dqro --operation Delete), never a
+global purge.
+
 Usage (local or in-container):
-  python run_scale_pipeline.py --clean
-  python run_scale_pipeline.py --from 4         # resume from a phase
-  python run_scale_pipeline.py --skip scan      # skip phase(s)
+  python -m idmc_governance.scale.orchestrator                 # full run
+  python -m idmc_governance.scale.orchestrator --from 4        # resume from a phase
+  python -m idmc_governance.scale.orchestrator --skip scan     # skip phase(s)
+  python -m idmc_governance.scale.orchestrator --discover      # auto-find schemas
 """
 from idmc_governance.common.paths import STATE_DIR, GOVERNANCE_SYSTEM_NAME
 import argparse
@@ -31,12 +35,10 @@ import subprocess
 import sys
 import time
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".env"))
 from idmc_governance.servers import ai_governance as aim
-from idmc_governance.servers import governance_engine as gem
 from idmc_governance.common import snowflake as snowflake_types
 
 # Catalog list is env-overridable (PIPELINE_SCHEMAS=comma,separated). Default = the
@@ -81,92 +83,14 @@ def _save_stats():
     json.dump(STATS, open(str(STATE_DIR / "stats.json"), "w"), indent=1)
 
 
-# ── phase 0: cleanup ────────────────────────────────────────────────────────
-# CDGC deletes must target core.externalId (DQO-/BT-/SDOM-/DOM-/DS-…) WITH the
-# X-INFA-PRODUCT-ID:CDGC header. The old path deleted by core.identity (UUID) → 404,
-# so --clean never actually purged and assets accumulated across every run.
-_PROD_HDR = {"X-INFA-PRODUCT-ID": "CDGC"}
-_GOV_CLASSES = {
-    "BusinessTerm": "com.infa.ccgf.models.governance.BusinessTerm",
-    "SubDomain":    "com.infa.ccgf.models.governance.SubDomain",
-    "Domain":       "com.infa.ccgf.models.governance.Domain",
-    "DataSet":      "com.infa.ccgf.models.governance.DataSet",
-}
-
-
-def _ext_of(h):
-    sa = h.get("systemAttributes") or {}
-    return h.get("core.externalId") or sa.get("core.externalId") or ""
-
-
-def _delete_asset(ext_id):
-    """Delete one asset by core.externalId. 201 (with a 'deleted' messageCode) = success."""
-    if not ext_id:
-        return False
-    try:
-        r = gem._request_cdgc(
-            "DELETE",
-            f"{gem.CDGC_API_BASE}/data360/content/v1/assets/{ext_id}",
-            headers=_PROD_HDR,
-        )
-        return r.status_code in (200, 201, 202, 204)
-    except Exception:
-        return False
-
-
-def _list_externalids(class_type, max_results=40000):
-    """All core.externalIds of a class via server-side filterSpec — avoids the
-    relevance-keyword miss (e.g. 'BusinessTerm' matches no term names) and the
-    10k wildcard deep-pagination cap (filtered result sets stay well under it)."""
-    url = (f"{gem.CDGC_API_BASE}/data360/search/v1/assets"
-           f"?knowledgeQuery=*&segments=summary,systemAttributes")
-    out, seen, offset, page = [], set(), 0, 100
-    while len(out) < max_results:
-        body = {"from": offset, "size": page,
-                "filterSpec": [{"type": "simple", "attribute": "core.classType",
-                                "values": [class_type]}]}
-        r = gem._request_cdgc("POST", url, json=body)
-        if r.status_code >= 400:
-            break
-        hits = (r.json() or {}).get("hits", [])
-        if isinstance(hits, dict):
-            hits = hits.get("hits", [])
-        if not hits:
-            break
-        for h in hits:
-            eid = _ext_of(h)
-            if eid and eid not in seen:
-                seen.add(eid)
-                out.append(eid)
-        if len(hits) < page:
-            break
-        offset += page
-    return out
-
-
-def _delete_many(ext_ids, workers=10):
-    if not ext_ids:
-        return 0
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        return sum(1 for ok in ex.map(_delete_asset, ext_ids) if ok)
-
-
-def clean(structure=False):
-    # DQ_* rule instances always (they duplicate every run). All named DQ_* and
-    # under 10k, so the keyword search is reliable here.
-    dq = [_ext_of(h) for h in aim._cdgc_search_paged("DQ_", max_results=40000)
-          if (aim._name_of(h) or "").startswith("DQ_")
-          and "RuleInstance" in ((h.get("systemAttributes") or {}).get("core.classType") or "")]
-    out = {"dqros_found": len(dq), "dqros_deleted": _delete_many(dq, workers=12)}
-    if structure:
-        # children-first so a parent isn't blocked by a live child link. System is
-        # deliberately NOT purged — those are catalog source systems the scan needs.
-        for label in ("BusinessTerm", "SubDomain", "Domain", "DataSet"):
-            ids = _list_externalids(_GOV_CLASSES[label])
-            out[f"{label}_found"] = len(ids)
-            out[f"{label}_deleted"] = _delete_many(ids, workers=8)
-            print(f"  clean {label}: found {len(ids)}, deleted {out[f'{label}_deleted']}")
-    return out
+# NOTE: the old phase-0 cleanup (clean()/--clean/--clean-structure) was removed.
+# It deleted DQ_* rule instances (and governance assets) GLOBALLY across the whole
+# catalog — a footgun that could wipe unrelated catalogs. Scoped teardown is now done
+# with a delete-operation bulk-import file instead:
+#   python -m idmc_governance.scale.generate_dqro --schemas <SCHEMA...> \
+#          --operation Delete --out delete.xlsx
+#   # then import delete.xlsx (idmc_governance.scale.bulk_import) — deletes exactly
+#   # the listed rows, nothing else.
 
 
 # ── phase 1: extract ────────────────────────────────────────────────────────
@@ -354,7 +278,7 @@ def costs():
         return {"error": str(e)[:200]}
 
 
-ALL = [("cleanup", None), ("extract", extract), ("taxonomy", taxonomy), ("colterm", colterm),
+ALL = [("extract", extract), ("taxonomy", taxonomy), ("colterm", colterm),
        ("domain", domain), ("system_ds", system_ds), ("rule_map", rule_map), ("gen_dqro", gen_dqro),
        ("import_dqro", import_dqro), ("curate", curate), ("scan", scan), ("costs", costs)]
 
@@ -391,9 +315,7 @@ def discover_schemas(name_filter: str = "GOVTEST_") -> list[str]:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--clean", action="store_true", help="run cleanup phase 0 (delete prior DQROs)")
-    ap.add_argument("--clean-structure", action="store_true", help="also delete 63 structural assets")
-    ap.add_argument("--from", dest="start", type=int, default=1, help="start phase index (1-based over ALL[1:])")
+    ap.add_argument("--from", dest="start", type=int, default=1, help="start phase index (1-based over ALL)")
     ap.add_argument("--skip", nargs="*", default=[], help="phase names to skip")
     ap.add_argument("--discover", action="store_true",
                     help="auto-discover schemas with tables (overrides PIPELINE_SCHEMAS)")
@@ -413,12 +335,8 @@ def main():
         os.environ["PIPELINE_SCHEMAS"] = ",".join(SCHEMAS)
         print(f"=== discovered {len(SCHEMAS)} schema(s): {SCHEMAS} ===")
 
-    print(f"=== SCALE PIPELINE start (clean={args.clean}) ===")
-    if args.clean:
-        phase("cleanup", lambda: clean(structure=args.clean_structure))
-
-    steps = ALL[1:]  # skip cleanup entry (handled above)
-    for i, (name, fn) in enumerate(steps, start=1):
+    print("=== SCALE PIPELINE start ===")
+    for i, (name, fn) in enumerate(ALL, start=1):
         if i < args.start or name in args.skip:
             print(f"-- skip {name}")
             continue
