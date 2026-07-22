@@ -28,7 +28,7 @@ CACHE = ".scan_cache"
 
 def main():
     cols = Counter(); toks = Counter(); tables = []
-    for f in glob.glob(f"{CACHE}/GOVERNANCE_SCALE_TEST*.json"):
+    for f in glob.glob(f"{CACHE}/*.json"):   # per-run cache is already scoped; DB-agnostic
         d = json.load(open(f))
         tables.append(d["name"])
         for c in d.get("columns", []):

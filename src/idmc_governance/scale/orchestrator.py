@@ -21,7 +21,7 @@ Usage (local or in-container):
   python run_scale_pipeline.py --from 4         # resume from a phase
   python run_scale_pipeline.py --skip scan      # skip phase(s)
 """
-from idmc_governance.common.paths import STATE_DIR
+from idmc_governance.common.paths import STATE_DIR, GOVERNANCE_SYSTEM_NAME
 import argparse
 import glob
 import json
@@ -45,9 +45,9 @@ SCHEMAS = [s.strip() for s in os.getenv(
     "PIPELINE_SCHEMAS",
     "GOVTEST_CLAIMS,GOVTEST_MEMBER,GOVTEST_CLINICAL,GOVTEST_PROVIDER",
 ).split(",") if s.strip()]
-ORIGIN = "GOVERNANCE_SCALE_TEST"
+ORIGIN = GOVERNANCE_SYSTEM_NAME   # single source of truth (common.paths)
 DQRO_FILE = "templates/CDGC_DQRO_FULL.xlsx"
-MAX_COLS = 3
+MAX_COLS = int(os.getenv("MAX_COLS", "3"))   # shared with curate_template (same env var)
 STATS = {"phases": {}, "started": int(time.time())}
 
 
@@ -173,7 +173,7 @@ def clean(structure=False):
 def extract():
     out = _sh(f"{sys.executable} -m idmc_governance.scale.extract_columns --workers 16")
     m = re.search(r"tables_ok=(\d+).*total_columns_in_cache=(\d+)", out)
-    n = len(glob.glob(".scan_cache/GOVERNANCE_SCALE_TEST*.json"))
+    n = len(glob.glob(".scan_cache/*.json"))
     return {"tables": int(m.group(1)) if m else n, "columns": int(m.group(2)) if m else None,
             "cache_files": n}
 
@@ -192,7 +192,7 @@ def colterm():
     terms = [b["name"] for d in tax["domains"] for s in d.get("subdomains", [])
              for b in s.get("business_terms", [])]
     cols = set()
-    for f in glob.glob(".scan_cache/GOVERNANCE_SCALE_TEST*.json"):
+    for f in glob.glob(".scan_cache/*.json"):
         for c in json.load(open(f)).get("columns", []):
             cols.add(c["name"].upper())
     cols = sorted(cols)
@@ -241,12 +241,17 @@ def _dq_column_refs(schema):
     """External ids of the DQ'd (potential) columns for a schema (same selection as DQROs)."""
     from idmc_governance.scale.generate_dqro import select_key_columns
     refs = []
-    for cf in glob.glob(f".scan_cache/GOVERNANCE_SCALE_TEST_{schema}*.json"):
+    # Match cache files by the schema segment of each external_id (DB-agnostic) rather
+    # than a hardcoded database-name prefix — works for any source database.
+    for cf in glob.glob(".scan_cache/*.json"):
         d = json.load(open(cf))
         ext = d.get("external_id", "")
-        if "~" not in ext:
+        if "~" not in ext or "://" not in ext:
             continue
         base = ext.split("~")[0]
+        parts = base.split("://", 1)[1].split("/")
+        if len(parts) < 2 or parts[1].upper() != schema.upper():
+            continue
         for col in select_key_columns(
                 [c for c in d.get("columns", []) if not (c.get("name") or "").startswith("SYS_")],
                 max_cols=MAX_COLS):

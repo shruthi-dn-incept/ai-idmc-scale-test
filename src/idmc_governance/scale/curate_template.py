@@ -32,13 +32,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import openpyxl
 
-from idmc_governance.common.paths import STATE_DIR
+from idmc_governance.common.paths import STATE_DIR, GOVERNANCE_SYSTEM_NAME
 from idmc_governance.scale import bulk_import as imp
 from idmc_governance.scale.generate_dqro import select_key_columns
 from idmc_governance.servers import ai_governance as aim
 from idmc_governance.servers import governance_engine as gem
 
-ORIGIN = "GOVERNANCE_SCALE_TEST"
+ORIGIN = GOVERNANCE_SYSTEM_NAME   # single source of truth (common.paths)
 COL_CLASS = "com.infa.odin.models.relational.Column"
 MAX_COLS = int(os.environ.get("MAX_COLS", "3"))
 IDENT_WORKERS = int(os.environ.get("CURATE_IDENT_WORKERS", "12"))
