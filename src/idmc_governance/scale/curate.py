@@ -64,7 +64,7 @@ def main():
 
     colterm = json.load(open(str(STATE_DIR / "colterm_map.json")))
     term_ids = json.load(open(str(STATE_DIR / "term_ids.json")))
-    files = sorted(glob.glob(f"{CACHE}/GOVERNANCE_SCALE_TEST*.json"))
+    files = sorted(glob.glob(f"{CACHE}/*.json"))   # per-run cache is already scoped; DB-agnostic
     if args.limit_tables:
         files = files[:args.limit_tables]
 

@@ -49,3 +49,15 @@ SCAN_CACHE_DIR = Path(os.getenv("SCAN_CACHE_DIR", str(REPO_ROOT / ".scan_cache")
 # Runtime-generated pipeline state (gitignored): taxonomy, maps, stats, job ids.
 STATE_DIR = Path(os.getenv("IDMC_STATE_DIR", str(REPO_ROOT / "state")))
 STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Load repo-root .env into os.environ before reading the import-time config below,
+# so `from ...common.paths import GOVERNANCE_SYSTEM_NAME` gets the configured value
+# even when the importing module hasn't called load_dotenv yet. Existing process-env
+# values still win (override=False), keeping Docker/shell exports authoritative.
+load_env_file()
+
+# Single source of truth for the canonical governance System name. Configured in
+# .env (GOVERNANCE_SYSTEM_NAME); the literal here is only a last-resort fallback so a
+# missing .env doesn't crash. Backend (orchestrator/curate ORIGIN) and the UI agent
+# (ai_governance) both import THIS — so they always create/reuse the same System asset.
+GOVERNANCE_SYSTEM_NAME = os.getenv("GOVERNANCE_SYSTEM_NAME", "GOVERNANCE_SCALE_TEST")

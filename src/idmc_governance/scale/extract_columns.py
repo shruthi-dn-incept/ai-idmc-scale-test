@@ -107,7 +107,11 @@ def main() -> int:
 
     os.makedirs(CACHE, exist_ok=True)
 
-    all_schemas = ["GOVTEST_CLINICAL", "GOVTEST_MEMBER", "GOVTEST_CLAIMS", "GOVTEST_PROVIDER"]
+    # Env-overridable (PIPELINE_SCHEMAS=comma,separated); default = original four.
+    all_schemas = [s.strip() for s in os.getenv(
+        "PIPELINE_SCHEMAS",
+        "GOVTEST_CLINICAL,GOVTEST_MEMBER,GOVTEST_CLAIMS,GOVTEST_PROVIDER",
+    ).split(",") if s.strip()]
     schemas = [args.schema] if args.schema else all_schemas
 
     global TYPE_MAP

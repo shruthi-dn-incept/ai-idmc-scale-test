@@ -4,7 +4,10 @@
 # DQRO import -> curate -> DQ scan, writing stats.json.
 # Usage:  .\deploy\azure_deploy_pipeline_job.ps1 [pipelineArgs]
 #   pipelineArgs: passed to the orchestrator (default "--clean")
-param([string]$PipelineArgs = "--clean")
+param(
+    [string]$PipelineArgs    = "--clean",
+    [string]$PipelineSchemas = ""   # comma-separated; empty = orchestrator default (original 4)
+)
 
 $ErrorActionPreference = "Continue"
 . "$PSScriptRoot\_load_env.ps1"
@@ -45,6 +48,7 @@ az containerapp job create `
   --secrets "idmc-pass=$($e['IDMC_PASS'])" "sf-key=$($e['SNOWFLAKE_PRIVATE_KEY_B64'])" "anthropic=$($e['ANTHROPIC_API_KEY'])" `
   --env-vars `
     "PIPELINE_ARGS=$PipelineArgs" `
+    "PIPELINE_SCHEMAS=$PipelineSchemas" `
     "IDMC_USER=$($e['IDMC_USER'])" "IDMC_PASS=secretref:idmc-pass" `
     "IDMC_LOGIN_HOST=$($e['IDMC_LOGIN_HOST'])" "IDMC_SERVER_URL=$($e['IDMC_SERVER_URL'])" `
     "IDMC_FRS_HOST=$($e['IDMC_FRS_HOST'])" "IDMC_DQ_HOST=$($e['IDMC_DQ_HOST'])" `

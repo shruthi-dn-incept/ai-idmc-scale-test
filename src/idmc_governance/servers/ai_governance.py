@@ -299,6 +299,13 @@ def _request_v3(method: str, path_or_url: str, **kw) -> httpx.Response:
 _MODEL_FAST   = "claude-haiku-4-5-20251001"   # routing + taxonomy — speed priority
 _MODEL_QUALITY = "claude-sonnet-4-6"           # curate / complex reasoning — quality priority
 
+# Canonical governance System name — single source of truth in common.paths, sourced
+# from .env (GOVERNANCE_SYSTEM_NAME). The UI agent AND the backend pipeline
+# (orchestrator/curate ORIGIN) import the SAME value so they share ONE System asset
+# (create_system_and_dataset reuses by exact name). Set GOVERNANCE_SYSTEM_NAME="" in
+# the environment to restore the old auto-derive-from-scan behavior.
+from idmc_governance.common.paths import GOVERNANCE_SYSTEM_NAME
+
 # Output cap for LLM calls. The whole-catalog taxonomy emits ~100 business terms
 # with definitions + synonyms in a single JSON response (~9-10K tokens), which
 # silently truncated at the old 8192 cap -> invalid JSON. Sonnet supports far
@@ -3319,9 +3326,12 @@ def govern(
             parts = [p for p in after_origin.split("~")[0].split("/") if p]
             connection_name = parts[0] if parts else ""
             schema_name     = parts[1] if len(parts) > 1 else ""
-        # Prefer scan-derived connection name over LLM-resolved — the LLM often hallucinates
-        # the table name as the system name when the request doesn't explicitly name the system.
-        system_name   = connection_name or resolved.get("system_name") or "Source System"
+        # Use the canonical governance System so the UI shares ONE System asset with the
+        # backend pipeline (reused by exact-name match in create_system_and_dataset).
+        # Falls back to the scan-derived connection name only if the canonical name is
+        # explicitly cleared (GOVERNANCE_SYSTEM_NAME=""). The LLM-resolved name is last
+        # resort — it often hallucinates the table name as the system name.
+        system_name   = GOVERNANCE_SYSTEM_NAME or connection_name or resolved.get("system_name") or "Source System"
         # Always derive dataset name from the scanned table — never from the LLM (it hallucinates).
         # One dataset per governed table; schema name is the fallback only when table_names is empty.
         dataset_name  = (table_names[0] if table_names else schema_name) or (domain_hint + " Dataset" if domain_hint else "Dataset")
