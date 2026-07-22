@@ -76,8 +76,22 @@ async def _call(server_url: str, tool: str, args: dict) -> Any:
         raise _unwrap_exception(eg.exceptions[0]) from None
 
 
-async def _govern(request: str) -> dict:
-    return await _call(AI_GOVERNANCE_URL, "govern", {"request": request})
+async def _govern(request: str, step: str | None = None) -> dict:
+    # `step` forces deterministic dispatch on the server (no LLM step-inference), so a
+    # stale persisted state can never misroute an explicit UI action to the wrong step.
+    args: dict = {"request": request}
+    if step:
+        args["step"] = step
+    return await _call(AI_GOVERNANCE_URL, "govern", args)
+
+
+@app.post("/api/reset")
+async def reset_session():
+    """Clear server-side pipeline state so 'New Session' truly starts fresh."""
+    try:
+        return await _call(AI_GOVERNANCE_URL, "reset_pipeline", {})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -252,7 +266,7 @@ async def step_taxonomy(req: TaxonomyRequest = TaxonomyRequest()):
 async def step_domain_structure_preview(req: EstimateRequest = EstimateRequest()):
     try:
         t0 = _time.monotonic()
-        out = await _govern("Create the domain structure in CDGC")
+        out = await _govern("Create the domain structure in CDGC", step="domain_structure")
         out = dict(out) if isinstance(out, dict) else {"result": out}
         # Fixed-cost: writing the domain hierarchy is a one-time op, not per-table.
         out.update(_estimate_block(_time.monotonic() - t0, req.sample_tables,
@@ -281,7 +295,7 @@ async def step_domain_structure_approve(req: ApproveDomainRequest):
 @app.post("/api/step/domain_structure")
 async def step_domain_structure():
     try:
-        return await _govern("Create the domain structure in CDGC")
+        return await _govern("Create the domain structure in CDGC", step="domain_structure")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -291,7 +305,7 @@ async def step_domain_structure():
 @app.post("/api/step/system_dataset")
 async def step_system_dataset():
     try:
-        return await _govern("Register the source system and dataset in CDGC")
+        return await _govern("Register the source system and dataset in CDGC", step="system_dataset")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -302,7 +316,7 @@ async def step_system_dataset():
 async def step_curate(req: EstimateRequest = EstimateRequest()):
     try:
         t0 = _time.monotonic()
-        plan = await _govern("Link the columns to their business terms")
+        plan = await _govern("Link the columns to their business terms", step="curate")
         plan_error = plan.get("error") or (plan.get("result") or {}).get("error")
         if plan_error:
             raise HTTPException(status_code=400, detail=f"Curate plan failed: {plan_error}")
@@ -331,7 +345,7 @@ async def step_curate(req: EstimateRequest = EstimateRequest()):
 @app.post("/api/step/dq_rules")
 async def step_dq_rules():
     try:
-        plan = await _govern("Create DQ rules for the scanned table")
+        plan = await _govern("Create DQ rules for the scanned table", step="dq_rules")
         next_actions = plan.get("result", {}).get("next_actions", [])
         rules: dict | None = None
         for action in next_actions:
@@ -359,7 +373,7 @@ async def step_dq_rules():
 @app.post("/api/step/scores")
 async def step_scores():
     try:
-        plan = await _govern("Propagate the DQ scores to CDGC")
+        plan = await _govern("Propagate the DQ scores to CDGC", step="propagate_scores")
         next_actions = plan.get("result", {}).get("next_actions", [])
         scores: list[dict] = []
         for action in next_actions:
@@ -385,7 +399,7 @@ async def step_scores():
 @app.post("/api/step/mcc_scan")
 async def step_mcc_scan():
     try:
-        return await _govern("Trigger the MCC Data Quality scan")
+        return await _govern("Trigger the MCC Data Quality scan", step="mcc_scan")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
