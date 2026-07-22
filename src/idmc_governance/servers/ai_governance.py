@@ -2795,6 +2795,22 @@ def _save_govern_state(state: dict[str, Any]) -> None:
     _write_container(container)
 
 
+@mcp.tool()
+def reset_pipeline() -> dict[str, Any]:
+    """Clear ALL persisted onboarding-pipeline state (govern_state.json) so a new
+    session starts clean.
+
+    The govern state is a single shared file on disk; without clearing it, a new UI
+    session inherits the previous session's advanced state and the step dispatcher can
+    misroute (e.g. run propagate_scores for a domain-structure request). This wipes
+    every table slot and the shared catalog cache. It does NOT delete any CDGC assets.
+    """
+    existed = _GOVERN_STATE_FILE.exists()
+    _write_container({"tables": {}, "_active": ""})
+    log.info("reset_pipeline: cleared govern state (had_state=%s)", existed)
+    return {"reset": True, "had_state": existed, "file": str(_GOVERN_STATE_FILE)}
+
+
 # ---------------------------------------------------------------------------
 # NLP step dispatcher: govern
 # ---------------------------------------------------------------------------
@@ -2986,6 +3002,7 @@ def _select_key_columns(
 def govern(
     request: str,
     dry_run: bool = False,
+    step: str | None = None,
 ) -> dict[str, Any]:
     """NLP-driven single-step governance pipeline.
 
@@ -3122,8 +3139,18 @@ def govern(
         f"Available catalog:\n{catalog_text}"
     )
 
-    log.info("govern: calling LLM to dispatch step for: %s", request[:120])
-    resolved = _llm_json(system_prompt, user_msg)
+    if step:
+        # Deterministic dispatch: the caller named the exact step (e.g. the UI's step
+        # buttons). Skip LLM step-inference entirely — this is what prevents a stale
+        # persisted state from misrouting an explicit request to the wrong step
+        # (e.g. a "create the domain structure" click running propagate_scores).
+        if step not in _STEP_ORDER:
+            return {"error": f"unknown explicit step '{step}'. Valid: {list(_STEP_ORDER)}"}
+        log.info("govern: explicit step=%s (LLM dispatch skipped)", step)
+        resolved = {"step": step, "reasoning": "explicit step (deterministic dispatch)"}
+    else:
+        log.info("govern: calling LLM to dispatch step for: %s", request[:120])
+        resolved = _llm_json(system_prompt, user_msg)
     step      = resolved.get("step", "")
     reasoning = resolved.get("reasoning", "")
 
