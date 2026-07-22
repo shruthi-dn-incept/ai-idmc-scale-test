@@ -87,16 +87,26 @@ def _dataset_business_value(schema: str) -> tuple[str, str]:
 
 
 def _selected_columns(schema: str) -> list[dict]:
-    """DQ'd column selection for a schema (same rule as DQROs), from local .scan_cache."""
+    """DQ'd column selection for a schema (same rule as DQROs), from local .scan_cache.
+
+    Match cache files by the schema segment of each external_id path, and derive the
+    database name from that path rather than assuming it equals ORIGIN. This lets sources
+    in ANY database work — the original four in GOVERNANCE_SCALE_TEST and the newer
+    catalogs in GOVERNANCE_SCALE_TEST_C. For the original DB (db == ORIGIN) the generated
+    core_Location / HierarchicalPath are byte-identical to the previous behavior.
+    """
     rows = []
-    for cf in sorted(glob.glob(f".scan_cache/{ORIGIN}_{schema}*.json")):
+    for cf in sorted(glob.glob(".scan_cache/*.json")):
         d = json.load(open(cf))
         ext = d.get("external_id", "")
-        if "~" not in ext:
+        if "~" not in ext or "://" not in ext:
             continue
-        base = ext.split("~")[0]                 # origin://SYSTEM/SCHEMA/TABLE
+        base = ext.split("~")[0]                 # <origin_uuid>://DB/SCHEMA/TABLE
         origin = base.split("://", 1)[0]
-        table = base.rsplit("/", 1)[-1]
+        parts = base.split("://", 1)[1].split("/")
+        if len(parts) < 3 or parts[1].upper() != schema.upper():
+            continue
+        db, table = parts[0], parts[-1]
         all_cols = d.get("columns", [])
         pos_of = {c.get("name"): i + 1 for i, c in enumerate(all_cols)}
         cols = [c for c in all_cols if not (c.get("name") or "").startswith("SYS_")]
@@ -104,8 +114,8 @@ def _selected_columns(schema: str) -> list[dict]:
             cn = col["name"]
             rows.append({"refid": f"{base}/{cn}~{COL_CLASS}", "name": cn, "table": table,
                          "origin": origin,
-                         "location": f"{origin}://{origin}/{ORIGIN}/{schema}/{table}/{cn}",
-                         "hpath": f"{schema}/{ORIGIN}/{schema}/{table}/{cn}",
+                         "location": f"{origin}://{origin}/{db}/{schema}/{table}/{cn}",
+                         "hpath": f"{schema}/{db}/{schema}/{table}/{cn}",
                          "position": str(pos_of.get(cn, ""))})
     return rows
 

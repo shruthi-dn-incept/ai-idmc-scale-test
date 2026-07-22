@@ -39,7 +39,12 @@ from idmc_governance.servers import ai_governance as aim
 from idmc_governance.servers import governance_engine as gem
 from idmc_governance.common import snowflake as snowflake_types
 
-SCHEMAS = ["GOVTEST_CLAIMS", "GOVTEST_MEMBER", "GOVTEST_CLINICAL", "GOVTEST_PROVIDER"]
+# Catalog list is env-overridable (PIPELINE_SCHEMAS=comma,separated). Default = the
+# original four proof-point schemas, so unset behavior is unchanged.
+SCHEMAS = [s.strip() for s in os.getenv(
+    "PIPELINE_SCHEMAS",
+    "GOVTEST_CLAIMS,GOVTEST_MEMBER,GOVTEST_CLINICAL,GOVTEST_PROVIDER",
+).split(",") if s.strip()]
 ORIGIN = "GOVERNANCE_SCALE_TEST"
 DQRO_FILE = "templates/CDGC_DQRO_FULL.xlsx"
 MAX_COLS = 3
@@ -308,9 +313,16 @@ def curate():
     results = ct.run(SCHEMAS)
     ok = [s for s, r in results.items()
           if str(r.get("final_status", "")).upper() in {"COMPLETED", "SUCCESS", "SUCCEEDED"}]
+    status = {s: r.get("final_status") or r.get("error") for s, r in results.items()}
+    # Fail the phase if any schema did not link — curate errors used to be swallowed
+    # (each schema's exception was caught in ct.run and never re-raised), so the
+    # pipeline reported success while 0 columns were linked. Surface it loudly instead.
+    if len(ok) < len(SCHEMAS):
+        failed = {s: status[s] for s in SCHEMAS if s not in ok}
+        raise RuntimeError(f"curate linked {len(ok)}/{len(SCHEMAS)} schemas; failed: {failed}")
     return {"schemas_ok": len(ok), "schemas": len(SCHEMAS),
             "rows": {s: r.get("rows") for s, r in results.items()},
-            "status": {s: r.get("final_status") or r.get("error") for s, r in results.items()}}
+            "status": status}
 
 
 # ── phase 9: trigger scans ──────────────────────────────────────────────────
@@ -342,13 +354,59 @@ ALL = [("cleanup", None), ("extract", extract), ("taxonomy", taxonomy), ("colter
        ("import_dqro", import_dqro), ("curate", curate), ("scan", scan), ("costs", costs)]
 
 
+def discover_schemas(name_filter: str = "GOVTEST_") -> list[str]:
+    """Auto-discover catalog-source/schema names that have catalogued base tables.
+
+    Enumerates CDGC catalog sources, keeps those whose name starts with `name_filter`
+    (case-insensitive) AND that expose >0 base Table assets, and skips the rest. This
+    means:
+      * a freshly-registered source, or one pointed at a views-only database (e.g. the
+        GOVTEST_ENROLLMENT → SNOWFLAKE-system-DB mistake), is skipped until it actually
+        has tables — no empty governance runs;
+      * unrelated connectors (Databricks, S3, ADLS, …) are excluded by the name filter.
+    Set name_filter="" to consider ALL sources (use with care).
+    """
+    nf = (name_filter or "").upper()
+    names = sorted({(s.get("name") or "") for s in aim._list_catalog_sources()
+                    if (s.get("name") or "").upper().startswith(nf)})
+    out = []
+    for n in names:
+        if not n:
+            continue
+        try:
+            ntables = len(aim._browse_all_tables_in_schema(n))
+        except Exception as e:
+            print(f"  discover: {n} → browse error ({e!r}); skipping")
+            continue
+        print(f"  discover: {n} → {ntables} tables {'✓' if ntables else '(skipped)'}")
+        if ntables > 0:
+            out.append(n)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--clean", action="store_true", help="run cleanup phase 0 (delete prior DQROs)")
     ap.add_argument("--clean-structure", action="store_true", help="also delete 63 structural assets")
     ap.add_argument("--from", dest="start", type=int, default=1, help="start phase index (1-based over ALL[1:])")
     ap.add_argument("--skip", nargs="*", default=[], help="phase names to skip")
+    ap.add_argument("--discover", action="store_true",
+                    help="auto-discover schemas with tables (overrides PIPELINE_SCHEMAS)")
+    ap.add_argument("--schema-filter", default=os.getenv("PIPELINE_SCHEMA_FILTER", "GOVTEST_"),
+                    help="name-prefix filter for --discover (default GOVTEST_; '' = all sources)")
     args = ap.parse_args()
+
+    if args.discover:
+        global SCHEMAS
+        print(f"=== discovering schemas (filter={args.schema_filter!r}) ===")
+        SCHEMAS = discover_schemas(args.schema_filter)
+        if not SCHEMAS:
+            print("=== discovery found no schemas with tables; nothing to do ===")
+            sys.exit(1)
+        # Propagate to the extract subprocess (reads PIPELINE_SCHEMAS) so it browses the
+        # same set the write phases will operate on.
+        os.environ["PIPELINE_SCHEMAS"] = ",".join(SCHEMAS)
+        print(f"=== discovered {len(SCHEMAS)} schema(s): {SCHEMAS} ===")
 
     print(f"=== SCALE PIPELINE start (clean={args.clean}) ===")
     if args.clean:
@@ -366,6 +424,16 @@ def main():
     _save_stats()
     print(f"\n=== PIPELINE DONE in {STATS['total_seconds']}s ===")
     print(json.dumps({k: v.get("seconds") for k, v in STATS["phases"].items()}, indent=1))
+
+    # Exit non-zero if ANY phase failed. Phases are individually fault-tolerant (a
+    # failure is recorded and the run continues to collect what it can), but the
+    # process must NOT report overall success when a phase errored — otherwise ACA/CI
+    # shows the job as Succeeded and silent failures (e.g. curate linking 0 columns)
+    # go unnoticed. STOP_ON_ERROR semantics live here, at the exit code.
+    failed = [name for name, info in STATS["phases"].items() if not info.get("ok")]
+    if failed:
+        print(f"=== PIPELINE FAILED: {len(failed)} phase(s) errored: {failed} ===")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
