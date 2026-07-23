@@ -179,7 +179,7 @@ The scale pipeline and UI run on **Azure Container Apps**. Deploy scripts in `de
 
 See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and
 [docs/azure-reference-architecture.md](docs/azure-reference-architecture.md) for the full
-picture. Measured scale results are in [docs/SAMEER_SCALE_RESULTS.md](docs/SAMEER_SCALE_RESULTS.md).
+picture. Measured scale results are in [docs/SCALE_RESULTS.md](docs/SCALE_RESULTS.md).
 
 ---
 

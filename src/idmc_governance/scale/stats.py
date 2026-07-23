@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Collect proper end-to-end stats for the Sameer email from ground truth:
+"""Collect proper end-to-end stats for the scale-results email from ground truth:
 verified counts (from each step's authoritative output), exact measured timings
 (from Azure execution + process times this session), live DQ-scan status, and
 Snowflake credits. Writes stats.json.

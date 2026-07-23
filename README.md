@@ -64,4 +64,4 @@ Individual pipeline phases can be run standalone, e.g.
 ## Docs
 - `docs/DEPLOYMENT.md` — architecture + deployment
 - `docs/azure-reference-architecture.md` — Azure reference architecture
-- `docs/SAMEER_SCALE_RESULTS.md` — measured full-catalog scale results
+- `docs/SCALE_RESULTS.md` — measured full-catalog scale results
