@@ -478,6 +478,44 @@ def _browse_all_tables_in_schema(schema_name: str) -> list[dict[str, Any]]:
         return (h.get("systemAttributes") or {}).get("core.classType", "")
 
     result = [h for h in hier if _child_class_type(h).endswith("Table")]
+    if not result:
+        # Nested source (source → database → schema → table): the resolved asset
+        # is a Resource/Database whose direct children are Databases/Schemas, not
+        # Tables — e.g. a source named RND_CATALOG scanning database RND. Walk down
+        # (depth-capped, skipping the SNOWFLAKE system database) to collect the
+        # tables so the source lists correctly even when its name != schema name.
+        def _descend(children: list[dict[str, Any]], depth: int) -> list[dict[str, Any]]:
+            tabs, containers = [], []
+            for h in children:
+                cls = _child_class_type(h)
+                if cls.endswith("Table"):
+                    tabs.append(h)
+                elif cls.endswith("Database") or cls.endswith("Schema"):
+                    if (_name_of(h) or "").upper() != "SNOWFLAKE":  # skip system metadata DB
+                        containers.append(h)
+            if depth > 0 and containers:
+                for c in containers:
+                    cid = _id_of(c)
+                    if not cid:
+                        continue
+                    d = _cdgc_get_asset(cid, segments="summary,hierarchy")
+                    ch = d.get("hierarchy") or []
+                    if isinstance(ch, dict):
+                        ch = ch.get("children") or ch.get("items") or []
+                    tabs.extend(_descend(ch, depth - 1))
+            return tabs
+        result = _descend(hier, 3)
+    # Dedupe by external id / identity — nested walks (and duplicate catalog
+    # paths) can surface the same table more than once.
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
+    for h in result:
+        key = (h.get("core.externalId") or (h.get("summary") or {}).get("core.externalId")
+               or _id_of(h) or _name_of(h))
+        if key and key not in seen:
+            seen.add(key)
+            deduped.append(h)
+    result = deduped
     _browse_cache[schema_name] = (_t.time(), result)
     log.info("_browse_all_tables_in_schema: %s → %d tables (cached)", schema_name, len(result))
     return result
