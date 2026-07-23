@@ -1,9 +1,34 @@
 # Incept IDMC Governance Agent — Knowledge Transfer
 
-> **Last updated:** May 13, 2026
-> **Status:** Phase 1 — 4 MCP Servers (3 complete, 1 building), 24+ tools
-> **Builder:** Solo (business/strategy background, guided by Claude + Claude Code)
-> **Environment:** Mac (development) + Windows laptop (Secure Agent)
+> **Last updated:** July 23, 2026
+> **Status:** Platform complete — **6 MCP servers, 65 tools** + a full-catalog **scale
+> pipeline** (proven at ~4,000 tables on Azure) + a **web UI** wizard.
+> **Environment:** Windows dev + Azure Container Apps (pipeline/UI) + Secure Agent VM.
+
+---
+
+> ## ⚠️ How to read this document
+>
+> This KT has two kinds of content:
+>
+> - **Current & authoritative** — §1 (overview, refreshed), §4–§6 (the reverse-engineered
+>   CDQ / CDGC / CDI API contracts). The API detail is the hardest-won knowledge here and
+>   is still exactly how the code works.
+> - **Historical** — §11–§13, §15 describe the *original* May-2026 solo build of 5
+>   local-dev MCP servers on a Mac. They're kept for provenance/decisions, but the "current
+>   state" diagrams and project structure there are **superseded**.
+>
+> **New joiner? Start with [`../ONBOARDING.md`](../ONBOARDING.md)** — it's the current
+> end-to-end onboarding guide (architecture, the 10-phase scale pipeline, how to run it,
+> and the landmines). Come *here* when you need the underlying API contracts.
+>
+> **What changed since May 2026:**
+> - A 6th server, **`ai_governance` (:8770)** — the LLM "brain" that designs the taxonomy
+>   and orchestrates onboarding — now fronts the original `governance_engine` (:8765).
+> - The product is no longer a demo of single-asset onboarding; it's a **full-catalog
+>   scale pipeline** (`src/idmc_governance/scale/`) that governs ~4,000 tables headless as
+>   one Azure job, plus a **web UI** wizard for the human-in-the-loop flow.
+> - Deployment moved from "localhost on a Mac" to **Azure Container Apps**.
 
 ---
 
@@ -13,21 +38,34 @@
 
 A platform of Python MCP servers that give AI assistants (Claude Desktop, Claude Code in VS Code) the ability to automate IDMC governance operations. Each MCP server is a separate product.
 
-### Phase 1 Products (5 MCP Servers)
+### Products — 6 MCP Servers (current)
 
-1. **Incept Governance Engine** — CDQ→CDI→CDGC pipeline automation ✅ BUILT (14 tools)
-2. **Incept Lineage Reporter** — data lineage and impact analysis ✅ BUILT (3 tools)
-3. **Incept Glossary Manager** — business glossary automation ✅ BUILT (3 tools)
-4. **Incept DQ Monitor** — DQ score monitoring and alerting 🔄 BUILDING (4 tools)
-5. **Incept Data Onboarding** — end-to-end dataset onboarding ⏳ PLANNED
+| # | Server | Port | Tools | Role |
+|---|--------|------|-------|------|
+| 1 | **ai_governance** | 8770 | 30 | The LLM "brain": scans a source, asks Claude to design the domain/subdomain/term taxonomy, creates the CDGC assets, curates column→term links, triggers MCC scans, and runs the `onboard_and_govern` master orchestrator. Also the CDMP/data-marketplace tools. |
+| 2 | **governance_engine** | 8765 | 24 | The "hands": CDQ rule specs, CDI mapping tasks, CDGC publish/curate/bulk-import, DQ score upload. Every actual write goes through here. |
+| 3 | **lineage_reporter** | 8766 | 3 | Lineage trace, impact reports, root-source finder. |
+| 4 | **glossary_manager** | 8767 | 3 | Business-term suggestion / CRUD / glossary issue detection. |
+| 5 | **dq_monitor** | 8768 | 4 | DQ score monitoring, trend checks, remediation, degradation alerts. |
+| 6 | **data_onboarding** | 8769 | 1 | Cross-server `onboard_dataset` orchestrator (delegates to the others). |
 
-### Build Order Rationale
+**65 tools total.** The two that matter 90% of the time are **`ai_governance` (:8770)** and
+**`governance_engine` (:8765)** — see the mental model in `../ONBOARDING.md`.
 
-Governance Engine first (builds shared infrastructure all others reuse) → Lineage Reporter + Glossary Manager (independent, CDGC-only, quick wins) → DQ Monitor (needs artifacts from Governance Engine) → Data Onboarding (orchestrates across all servers)
+### Build Order Rationale (original)
+
+Governance Engine first (builds shared infrastructure all others reuse) → Lineage Reporter + Glossary Manager (independent, CDGC-only, quick wins) → DQ Monitor (needs artifacts from Governance Engine) → Data Onboarding (orchestrates across all servers). The `ai_governance` server was added later, on top of this foundation, to drive the LLM taxonomy + full-catalog scale pipeline.
 
 ---
 
 ## 2. Environment Setup (COMPLETED)
+
+> **Current source of truth for config is [`../.env.example`](../.env.example)**, not the
+> values below. The auth *flow* (session → JWT) documented in this section is still exactly
+> how it works, but specific hostnames/accounts have moved on — e.g. the pod host is now
+> `dm-us.informaticacloud.com` (not `dmp-us`), the governed schemas are the `GOVTEST_*`
+> set, and Snowflake/org values differ. Treat the specifics below as the original dev
+> instance; copy `.env.example` → `.env` and fill in the real values.
 
 ### IDMC Dev Instance
 
@@ -681,10 +719,31 @@ IDMC's migration service enforces **immutable checksums on inner DTEMPLATE bundl
 
 ## 12. Deployment & Productization Architecture
 
-### Current State: Local Development
+### Current State (July 2026)
+
+The servers below are the same code, but the deployment model has moved on. Locally they
+run as `src/idmc_governance/servers/*.py`; in production the scale pipeline and UI run on
+**Azure Container Apps** (see §6 of `../ONBOARDING.md` and `docs/DEPLOYMENT.md`).
 
 ```
-Developer's Mac (localhost)
+Local dev OR Azure Container Apps
+├── ai_governance       → http://127.0.0.1:8770/mcp   ← added since May; LLM brain
+├── governance_engine   → http://127.0.0.1:8765/mcp
+├── lineage_reporter    → http://127.0.0.1:8766/mcp
+├── glossary_manager    → http://127.0.0.1:8767/mcp
+├── dq_monitor          → http://127.0.0.1:8768/mcp
+└── data_onboarding     → http://127.0.0.1:8769/mcp
+
+Driven by:  Web UI wizard (ui/app.py → :9080)  OR  scale/orchestrator.py (headless, 10 phases)
+Client:     Claude Code in VS Code, or the servers called directly by the pipeline/UI
+Auth:       IDMC session → JWT (see §5 login flow); .env locally, secrets store on Azure
+```
+
+> The historical diagram below (a single Mac, 5 servers, VS Code client) captures the
+> original May-2026 setup and is kept for provenance only.
+
+```
+[HISTORICAL — May 2026] Developer's Mac (localhost)
 ├── governance_engine_mcp.py    → http://127.0.0.1:8765/mcp
 ├── lineage_reporter_mcp.py     → http://127.0.0.1:8766/mcp
 ├── glossary_manager_mcp.py     → http://127.0.0.1:8767/mcp
@@ -918,7 +977,7 @@ Requirements:
 - ✅ **All 5 servers committed and pushed** — working tree clean, 15+ commits on main
 - ✅ **Knowledge Transfer doc maintained** — 15 sections, 800+ lines
 
-### PLATFORM COMPLETE — Final State
+### PLATFORM STATE — May 2026 (historical snapshot)
 
 | #         | Server                   | Port | Tools  | Status           |
 | --------- | ------------------------ | ---- | ------ | ---------------- |
@@ -929,6 +988,18 @@ Requirements:
 | 5         | Data Onboarding          | 8769 | 1      | ✅ Complete      |
 | +         | Informatica MCP (hosted) | —    | 2      | ✅ Connected     |
 | **Total** |                          |      | **27** | **All complete** |
+
+### PLATFORM STATE — July 2026 (current)
+
+| #         | Server                   | Port | Tools  | Notes                                   |
+| --------- | ------------------------ | ---- | ------ | --------------------------------------- |
+| 1         | ai_governance            | 8770 | 30     | LLM brain + CDMP/marketplace tools      |
+| 2         | governance_engine        | 8765 | 24     | expanded from 14                        |
+| 3         | lineage_reporter         | 8766 | 3      |                                         |
+| 4         | glossary_manager         | 8767 | 3      |                                         |
+| 5         | dq_monitor               | 8768 | 4      |                                         |
+| 6         | data_onboarding          | 8769 | 1      |                                         |
+| **Total** |                          |      | **65** | + scale pipeline (10 phases) + web UI   |
 
 ### TODO Next (Priority Order)
 

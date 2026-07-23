@@ -7,11 +7,11 @@
 
 ---
 
-## Draft mail to Sameer
+## Draft results email
 
 > **Subject: AI governance agent — full-catalog scale run (4,000 tables) results**
 >
-> Hi Sameer,
+> Hi team,
 >
 > We ran the AI governance agent end-to-end on Azure across a full 4,000-table /
 > 137,637-column Snowflake catalog — the complete pipeline: domain structure →

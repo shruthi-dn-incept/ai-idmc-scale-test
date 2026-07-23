@@ -49,6 +49,11 @@ state/
 templates/CDGC_DQRO_FULL.xlsx
 # CDGC column export (7.2 MB data snapshot, regenerable via Export Assets) — not a template
 templates/CDGC_CURATE_DATASET.xlsx
+# Ad-hoc comparison/marketing docs dropped in templates/ — not pipeline templates.
+# (The real templates are CDGC_DQRO_TEMPLATE.xlsx and the "Marketplace - *.xlsx" set.)
+templates/*.docx
+templates/*.zip
+templates/RND.xlsx
 
 # Local secrets (RSA keys etc.)
 secrets/
