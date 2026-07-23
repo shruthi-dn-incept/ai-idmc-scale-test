@@ -1050,7 +1050,13 @@ def list_catalog_tables(
     # Use all distinct source names from discovered tables (not just _list_catalog_sources)
     all_source_names = list(tables_per_source.keys())
     browse_names = [n for n in all_source_names if n and tables_per_source.get(n, 0) >= BROWSE_THRESHOLD]
-    log.info("browse supplement: %d of %d sources qualify (>=%d tables)",
+    # Also browse registered sources that keyword search missed ENTIRELY (0 hits) —
+    # e.g. a source whose name != its schema (RND_CATALOG scanning RND.PUBLIC), whose
+    # table names don't contain the source name so no query matches them. Their browse
+    # is already cached from the UUID-seeding step above, so this is cheap.
+    browse_names += [n for n in source_names if n and tables_per_source.get(n, 0) == 0]
+    browse_names = list(dict.fromkeys(browse_names))
+    log.info("browse supplement: %d of %d sources qualify (>=%d tables or 0-hit)",
              len(browse_names), len(source_names), BROWSE_THRESHOLD)
     if browse_names:
         def _process_browse_hit(hit: dict[str, Any], src_name: str) -> tuple[Any, dict] | None:
